@@ -139,7 +139,6 @@ function set_css() {
 `
     document.querySelector("head").appendChild(css);
 }
-//#463554
 
 // data stuff
 
