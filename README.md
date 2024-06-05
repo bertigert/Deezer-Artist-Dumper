@@ -1,7 +1,8 @@
 # Deezer-Artist-Dumper
 
 A tampermonkey userscript which adds the functionality to download all of the Artists EPs, Singles, Albums and Features.
-Aims to mimic the Deezer Design on desktop.
+Aims to mimic the Deezer Design on desktop. Supports both dark and white mode, although intended for dark mode.
+I do not know if "all" are really all songs, with all I mean every song which is listed on the discography page of an artist. I believe the Top 100 Tracks cannot include more songs. If that is wrong, contact me and I will add that.
 
 ## Features
 - Adds a button on the artist page
@@ -10,3 +11,6 @@ Aims to mimic the Deezer Design on desktop.
 - Lets you download a dump log which can be used in later dumps for the same artist to ignore songs which have already been added once (useful if you want to catch up on an artist)
 - Lets you use Regex to blacklist Songs with certain titles
 ![image](https://github.com/bababoi-2/Deezer-Artist-Dumper/assets/165707934/5772bbe8-855c-45d4-b6da-5f51060ed1c1)
+
+### TODO:
+- maybe make fetching the songs asynchronous, idk about ratelimits though
