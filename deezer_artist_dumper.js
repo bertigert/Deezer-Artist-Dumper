@@ -140,6 +140,7 @@ function set_css() {
     document.querySelector("head").appendChild(css);
 }
 
+
 // data stuff
 
 async function get_user_data() {
@@ -287,7 +288,7 @@ async function get_all_songs(auth_token, artist_id) {
         }
     }
 
-    if (last_dump?.last_dump.artist_id === artist_id) {
+    if (last_dump?.artist_id === artist_id) {
         for (let last_dump_song_id of last_dump.song_ids) {
             if (songs[last_dump_song_id] !== undefined) {
                 output(INFO, `Not adding ${songs[last_dump_song_id]} as it was present in the last dump`);
@@ -317,7 +318,7 @@ async function create_playlist(songs, artist_name) {
 }
 
 async function add_songs_to_playlist(playlist_id, songs) {
-    const r = await fetch("https://www.deezer.com/ajax/gw-light.php?method=playlist.addSongs&input=3&api_version=1.0&api_token=uU_Yi-KoAF4JV_X7x9JzD0%7ErKQWkqq2m&cid=96159757", {
+    const r = await fetch("https://www.deezer.com/ajax/gw-light.php?method=playlist.addSongs&input=3&api_version=1.0&api_token="+get_api_token(), {
         "body": JSON.stringify({
             "playlist_id": playlist_id,
             "songs": songs.map((s) => [s, 0]),
@@ -433,6 +434,7 @@ async function submit() {
 
     output(INFO, "Getting songs");
     const songs = await get_all_songs(auth_token, data.artist_id);
+
     let text = "";
 
     const selected_playlist_id = selected_playlist.getAttribute("data-id")
@@ -470,6 +472,8 @@ async function submit() {
         output(INFO, "There are no songs to add, exiting");
         return;
     }
+    data.song_ids.reverse(); // sorting playlist afterwards doesnt really work as we add all songs at the same time so we need to sort it here since the order we receive is fifo but we need filo (basically)
+
     const artist_name = get_current_artist_name();
     if (selected_playlist.getAttribute("data-id") === "-1") {
         output(INFO, "Creating new playlist for "+artist_name);
