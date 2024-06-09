@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -278,14 +278,23 @@ async function get_all_songs(auth_token, artist_id) {
         return album_songs;
     }
 
-
+    // get all songs from albums asynchronous, 10 at a time to avoid ratelimits
     const albums = await get_all_albums();
     let songs = {};
-    for (let album of albums) {
-        output(INFO, "Getting songs for "+album[1]);
-        for (let song of await get_all_songs_from_album(album[0])) {
-            songs[song[0]] = song[1];
-        }
+    let promises = [];
+
+    for (let i = 0; i < albums.length; i += 10) {
+        const chunk = albums.slice(i, i + 10);
+
+        let albumPromises = chunk.map(async album => {
+            output(INFO, "Getting songs for " + album[1]);
+            const albumSongs = await get_all_songs_from_album(album[0]);
+            for (let song of albumSongs) {
+                songs[song[0]] = song[1];
+            }
+        });
+
+        await Promise.all(albumPromises);
     }
 
     if (last_dump?.artist_id === artist_id) {
@@ -334,7 +343,6 @@ async function add_songs_to_playlist(playlist_id, songs) {
     const resp = await r.json();
     return resp;
 }
-
 
 async function update_playlist_picture_to_current_artist(playlist_id) {
     const img_url = document.querySelector("#page_naboo_artist > div.container > div > div > div > img").src
