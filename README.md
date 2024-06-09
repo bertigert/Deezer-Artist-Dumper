@@ -1,4 +1,4 @@
-# Deezer-Artist-Dumper
+# Deezer-Artist-Dumper / Downloader
 
 A tampermonkey userscript which adds the functionality to download all of the Artists EPs, Singles, Albums and Features.
 Aims to mimic the Deezer Design on desktop. Supports both dark and white mode, although intended for dark mode.
