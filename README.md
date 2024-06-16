@@ -11,3 +11,6 @@ I do not know if "all" are really all songs, with all I mean every song which is
 - Lets you download a dump log which can be used in later dumps for the same artist to ignore songs which have already been added once (useful if you want to catch up on an artist)
 - Lets you use Regex to blacklist Songs with certain titles
 ![image](https://github.com/bababoi-2/Deezer-Artist-Dumper/assets/165707934/5772bbe8-855c-45d4-b6da-5f51060ed1c1)
+
+# TODO
+- use multiple dumps for filtering. Also remove the artist check for dump, a user should be able to filter out songs, regardless if its the same artist or not.
