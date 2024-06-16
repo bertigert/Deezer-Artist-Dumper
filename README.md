@@ -14,3 +14,5 @@ I do not know if "all" are really all songs, with all I mean every song which is
 
 # TODO
 - use multiple dumps for filtering. Also remove the artist check for dump, a user should be able to filter out songs, regardless if its the same artist or not.
+- artist/contributer blacklist
+- 
