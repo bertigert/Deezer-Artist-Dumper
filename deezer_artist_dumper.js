@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -297,12 +297,10 @@ async function get_all_songs(auth_token, artist_id) {
         await Promise.all(albumPromises);
     }
 
-    if (last_dump?.artist_id === artist_id) {
-        for (let last_dump_song_id of last_dump.song_ids) {
-            if (songs[last_dump_song_id] !== undefined) {
-                output(INFO, `Not adding ${songs[last_dump_song_id]} as it was present in the last dump`);
-                delete songs[last_dump_song_id];
-            }
+    for (let last_dump_song_id of last_dump_song_ids) {
+        if (songs[last_dump_song_id] !== undefined) {
+            output(INFO, `Not adding ${songs[last_dump_song_id]} as it was present in another dump`);
+            delete songs[last_dump_song_id];
         }
     }
     return songs;
@@ -413,6 +411,8 @@ function download_dump(data, time) {
 
 
 async function submit() {
+    const start_time = Date.now();
+
     set_config();
 
     let regexes_str = config.regexes.split(/(?<!\\)\n/); // match \n but not \\n
@@ -513,7 +513,7 @@ async function submit() {
         let r = await add_songs_to_playlist(selected_playlist.getAttribute("data-id"), data.song_ids);
         if (r.error.length !== 0) {
             console.error("Failed to add songs to playlist", r.error);
-            if (r.error["ERROR_DATA_EXISTS"] !== undefined) {
+            if (r.error.ERROR_DATA_EXISTS !== undefined) {
                 output(ERROR, "Failed to add songs as at least 1 song is already in playlist");
             } else {
                 output(ERROR, "Failed to add songs to playlist, see console");
@@ -524,6 +524,7 @@ async function submit() {
         output(SUCCESS, "Added songs to playlist "+selected_playlist.textContent);
         output(SUCCESS, "Finished");
     }
+    output(INFO, `Process took ${(Date.now()-start_time)/1000} seconds.`);
     download_btn.click();
 
 }
@@ -721,6 +722,7 @@ function create_output_textarea() {
 function create_load_btn(data, time) {
     const file_inpt = document.createElement("input");
     file_inpt.type = "file";
+    file_inpt.multiple = true;
     file_inpt.style.display = "none";
 
     const load_btn = document.createElement("button");
@@ -732,13 +734,42 @@ function create_load_btn(data, time) {
     };
 
     file_inpt.onchange = (e) => {
-        const file = e.target.files[0];
-        let reader = new FileReader();
-        reader.readAsText(file, "UTF-8");
-        reader.onload = (re) => {
-            last_dump = JSON.parse(re.target.result);
-            load_btn.textContent = file.name
+        last_dump_song_ids = [];
+        const files = e.target.files;
+        load_btn.textContent = "0 Dumps (Check JSON/console)";
+        load_btn.title = "";
+
+        const readers = [];
+        for (let file of files) {
+            const reader = new FileReader();
+            readers.push(reader);
+            reader.readAsText(file, "UTF-8");
+            reader.onerror = e => {
+                console.error("File reading error:", e);
+            };
+            reader.onload = re => {
+                let last_dump;
+                try {
+                    last_dump = JSON.parse(re.target.result);
+                } catch (e) {
+                    output(ERROR, "Error parsing dump "+file.name);
+                    console.error("Error parsing dump "+file.name, e);
+                    return;
+                }
+
+                last_dump_song_ids = [...last_dump_song_ids, ...last_dump.song_ids];
+                const file_count = Number(load_btn.textContent.split(" ", 1)[0] ) + 1;
+                load_btn.textContent = file_count.toString() + " Dump" + (file_count > 1 ? "s": "");
+                load_btn.title += file.name+"\n";
+            }
         }
+
+        const wait_for_readers = setInterval(() => { // race condition but ig the file loading should always be quicker than the user pressing submit
+            if (readers.every(v => v.result !== null)) {
+                clearInterval(wait_for_readers);
+                last_dump_song_ids = [...new Set(last_dump_song_ids)]; // deduplicate
+            }
+        }, 10)
     }
     return load_btn;
 }
@@ -748,7 +779,7 @@ function create_download_btn(data, time) {
     const download_btn = document.createElement("button");
     download_btn.textContent = "Download Dump";
     download_btn.className = "action_btn";
-    download_btn.title = "Download data for this dump."
+    download_btn.title = "Download data for this dump.";
     download_btn.style.marginTop = "1px";
     download_btn.onclick = () => download_dump(data, time);
 
@@ -762,11 +793,11 @@ let user_data;
 let output_textarea;
 let main_div;
 let download_btn;
-let last_dump;
+let last_dump_song_ids;
 
-const ERROR = "ERROR";
-const INFO = "INFO";
-const SUCCESS = "SUCCESS";
+const ERROR = "!";//"ERROR";
+const INFO = "?";//"INFO";
+const SUCCESS = "*";//"SUCCESS";
 
 let last_url = location.href;
 navigation.addEventListener('navigate', (e) => {
@@ -806,7 +837,7 @@ async function main() {
             }
 
             config = get_config()
-            last_dump = null;
+            last_dump_song_ids = [];
 
             set_css();
             main_ul.style.position = "relative";
