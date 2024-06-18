@@ -13,6 +13,5 @@ I do not know if "all" are really all songs, with all I mean every song which is
 ![image](https://github.com/bababoi-2/Deezer-Artist-Dumper/assets/165707934/5772bbe8-855c-45d4-b6da-5f51060ed1c1)
 
 # TODO
-- use multiple dumps for filtering. If a dump log is used, the new dump should merge with the song_ids from the old dump so that the new dump contains every song. Also remove the artist check for dump, a user should be able to filter out songs, regardless if its the same artist or not.
 - artist/contributer blacklist
 - combine blacklists into same text area and use some form of fomat to specify which rule is for what
