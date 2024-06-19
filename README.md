@@ -15,5 +15,6 @@ I do not know if "all" are really all songs, with all I mean every song which is
 ![image](https://github.com/bababoi-2/Deezer-Artist-Dumper/assets/165707934/5772bbe8-855c-45d4-b6da-5f51060ed1c1)
 
 # TODO
-- artist/contributer blacklist
-- combine blacklists into same text area and use some form of fomat to specify which rule is for what
+- artist/contributer name/album name blacklist
+- add a whitelist with the same features as the blacklist. if the whitelist is active, only songs on the whitelist should be added IF they are not blacklisted.
+- combine blacklists and whitelist into same text area and use some form of fomat to specify which rule is for what type of list and what type of filter
