@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.2.1
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
