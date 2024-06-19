@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -202,7 +202,7 @@ function set_config() {
 
 async function get_all_songs(auth_token, artist_id) {
     async function get_all_albums() {
-        async function get_albums(last_song) { // everything is an album
+        async function request_albums(last_song, roles, types) {
             const r = await fetch("https://pipe.deezer.com/api", {
                 "headers": {
                     "authorization": "Bearer "+auth_token,
@@ -215,16 +215,9 @@ async function get_all_songs(auth_token, artist_id) {
                         "nb": 500,
                         "cursor": last_song,
                         "subType": null,
-                        "roles": [
-                            "MAIN",
-                            ...(config.toggles.featured ? ['FEATURED'] : [])
-                        ],
+                        "roles": roles,
                         "order": config.order,
-                        "types": [ // thx chatgpt, wtf is this
-                            ...(config.toggles.ep ? ['EP'] : []),
-                            ...(config.toggles.singles ? ['SINGLES'] : []),
-                            ...(config.toggles.album ? ['ALBUM'] : [])
-                        ]
+                        "types": types
                     },
                     "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
                 }),
@@ -234,6 +227,39 @@ async function get_all_songs(auth_token, artist_id) {
             return resp.data;
         }
 
+        async function get_albums(last_song) { // everything is an album
+            let roles = ["MAIN"];
+            let types = [];
+
+            if (config.toggles.featured && config.toggles.ep && config.toggles.singles && config.toggles.album) { // everything is ticked
+                roles.push("FEATURED")
+                types.push("EP", "SINGLES", "ALBUM");
+                return await request_albums(last_song, roles, types);
+            }
+
+            let data = null
+
+            if (config.toggles.ep) types.push("EP");
+            if (config.toggles.singles) types.push("SINGLES");
+            if (config.toggles.album) types.push("ALBUM");
+            // types.length must be < 3 if featured was ticked
+            if (types.length > 0) data = await request_albums(last_song, roles, types);
+
+            if (config.toggles.featured) { // featured is ticked, but maybe there are other options (not all though) ticked as well, but as featured gets every type, we need to get the other types seperately
+                roles = ["FEATURED"];
+                types = ["EP", "SINGLES", "ALBUM"];
+                if (data !== null) { // if other types where ticked, we append the featured songs, the data object is still from the normal search though, so if there are more featured songs, we won't get them (there shouldnt be more than 500 though)
+                    data.artist.albums.edges.push( ...(await request_albums(last_song, roles, types)).artist.albums.edges );
+                } else { // only featured was ticked
+                    data = await request_albums(last_song, roles, types);
+                }
+            }
+
+            return data;
+        }
+
+
+
         const albums = [];
 
         let data = await get_albums(null);
@@ -241,6 +267,9 @@ async function get_all_songs(auth_token, artist_id) {
             albums.push([album.node.id, album.node.displayTitle]);
         }
         // could prob do it better recursively
+        // this is a bit broken if not everything is ticked as we sometimes send 2 requests for featured and everything else.
+        // the main data is from everything else, the featured songs just get appended.
+        // so the nextpage/cursor attributes are from the non featured songs, meaning if there are more featured songs (which shouldnt happen), we will miss them.
         while (data.artist.albums.pageInfo.hasNextPage) {
             data = await get_albums(data.artist.albums.pageInfo.endCursor);
             for (let album of data.artist.albums.edges) {
@@ -249,6 +278,7 @@ async function get_all_songs(auth_token, artist_id) {
         }
         return albums;
     }
+
 
     async function get_all_songs_from_album(album_id) {
         const r = await fetch("https://www.deezer.com/ajax/gw-light.php?method=song.getListByAlbum&input=3&api_version=1.0&api_token="+get_api_token(), {
