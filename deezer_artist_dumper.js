@@ -192,7 +192,8 @@ function get_config() {
             featured: false,
         },
         order: "RELEASE_DATE",
-        regexes: "(?:\(slowed\)|\(sped up\)|\(reverb\))#i"
+        regexes: "(\\(|- )(((super )?slowed( [&+] reverb)?)|(sped up)|(reverb))\\)?$#i"
+        // https://regex101.com/r/TQNFSB/1
     }
 }
 function set_config() {
@@ -329,7 +330,7 @@ async function get_all_songs(auth_token, artist_id) {
 
     for (let last_dump_song_id of last_dump_song_ids) {
         if (songs[last_dump_song_id] !== undefined) {
-            output(INFO, `Not adding ${songs[last_dump_song_id]} as it was present in another dump`);
+            output(INFO, `${songs[last_dump_song_id]} was present in another dump`);
             delete songs[last_dump_song_id];
         }
     }
@@ -481,7 +482,7 @@ async function submit() {
         if (songs_already_in_playlist.error.length === 0) {
             for (let song_already_in_playlist of songs_already_in_playlist.results.data) {
                 if (songs[song_already_in_playlist.SNG_ID] !== undefined) {
-                    output(INFO, `Not adding ${songs[song_already_in_playlist.SNG_ID]} as it is already in the playlist`);
+                    output(INFO, `${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
                     delete songs[song_already_in_playlist.SNG_ID];
                 }
             }
