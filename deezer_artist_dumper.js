@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.2.1
+// @version      1.3
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -85,11 +85,22 @@ function set_css() {
     border-color: var(--tempo-colors-text-neutral-secondary-default);
 }
 
+.searchbar {
+    width: 100%;
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-radius: 6px;
+    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    margin-top: 5px;
+    padding: 8px 11px;
+}
+.searchbar:hover {
+    border-color: var(--tempo-colors-text-neutral-secondary-default);
+}
+
 .new_playlist_btn {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 8px;
     padding: 8px 11px;
 }
 .new_playlist_btn svg {
@@ -110,7 +121,6 @@ function set_css() {
     overflow: auto;
     position: relative;
     top: 6px;
-
 }
 .playlist_ul button {
     width: 100%;
@@ -179,7 +189,7 @@ function get_current_artist_name() {
 }
 
 function get_playlists() {
-    return JSON.parse(localStorage.getItem("PLAYLISTS_"+get_user_id()));
+    return JSON.parse(localStorage.getItem("PLAYLISTS_"+get_user_id())).data;
 }
 
 function get_config() {
@@ -659,7 +669,7 @@ function create_song_types_options() {
 
     const order_dropdown = document.createElement("select");
     order_dropdown.className = "my_dropdown";
-    order_dropdown.title = "Order of songs. Not really important as you can just sort the playlist";
+    order_dropdown.title = "Order of songs. Does not really affect anything as the songs get added all at once so deezer sorts them by song_id internally which is MOSTLY equal to release date, but can have exceptions.";
     order_dropdown.append(...opts)
     order_dropdown.onchange = () => { // since we only have two elements, we know that if it changes it is the other option
         config.order = config.order === "RELEASE_DATE" ? "RANK" : "RELEASE_DATE";
@@ -668,6 +678,18 @@ function create_song_types_options() {
     options_ul.appendChild(order_dropdown);
 
     return options_ul;
+}
+
+function create_search_bar(playlists, playlist_ul) {
+    let inpt = document.createElement("input")
+    inpt.placeholder = "Search Playlist";
+    inpt.className = "searchbar";
+    inpt.oninput = (e) => {
+        for (let playlist of playlists) {
+            playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`).style.display = playlist.TITLE.toLowerCase().includes(inpt.value.toLowerCase()) ? "" : "none";
+        }
+    }
+    return inpt;
 }
 
 
@@ -703,7 +725,7 @@ function create_playlists_btns(playlists, new_playlist_btn) {
     playlist_ul.appendChild(playlist_li);
 
     let playlist, playlist_btn;
-    for (playlist of playlists.data) {
+    for (playlist of playlists) {
         playlist_btn = document.createElement("button");
         playlist_btn.title = `Add the songs to ${playlist.TITLE}`
         playlist_btn.textContent = playlist.TITLE
@@ -877,17 +899,21 @@ async function main() {
             const blacklist_textarea = create_blacklist_textarea();
             const options_ul = create_song_types_options();
 
+
             let new_playlist_btn = create_new_playlist_btn();
             new_playlist_btn.setAttribute("selected", "");
             selected_playlist = new_playlist_btn;
 
-            const playlist_ul = create_playlists_btns(get_playlists(), new_playlist_btn);
+            const playlists = get_playlists()
+            const playlist_ul = create_playlists_btns(playlists, new_playlist_btn);
+            const search_bar = create_search_bar(playlists, playlist_ul);
+
             const submit_btn = create_submit_btn();
             const load_btn = create_load_btn();
             output_textarea = create_output_textarea();
             const main_btn = create_main_btn(main_div);
 
-            main_div.append(blacklist_textarea, options_ul, playlist_ul, submit_btn, output_textarea, load_btn);
+            main_div.append(blacklist_textarea, options_ul, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
             main_ul.append(main_btn, main_div);
         }
     }, 200)
