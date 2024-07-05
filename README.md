@@ -20,3 +20,6 @@ I do not know if "all" are really all songs, with all I mean every song which is
 - combine blacklists and whitelist into same text area and use some form of fomat to specify which rule is for what type of list and what type of filter
 - setting to add the songs one by one which results in them being able to be sorted by release date or rank properly (would be way slower when enabled as there would be a synchronous (since we want to keep order) request for every song)
 - filter songs by length
+- create dump from playlist
+  - automatically determine dominant artist/let user choose 
+  - automatically create regex which would blacklist songs from the artist which are not in the current playlist
