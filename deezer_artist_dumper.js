@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.3.1
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -202,8 +202,8 @@ function get_config() {
             featured: false,
         },
         order: "RELEASE_DATE",
-        regexes: "(\\(|- )(((super )?slowed( [&+] reverb)?)|(sped up)|(reverb))\\)?$#i"
-        // https://regex101.com/r/TQNFSB/1
+        regexes: "(\\(|- )(((super )?slowed(( &| \\+| *,) reverb)?)|(sped up)|(reverb))\\)?$#i"
+        // https://regex101.com/r/f0jn2M/1
     }
 }
 function set_config() {
@@ -472,6 +472,7 @@ async function submit() {
     output(INFO, "Regexes valid", true);
 
     const data = {
+        artist_name: get_current_artist_name(),
         artist_id: get_current_artist_id(),
         regexes: regexes_str,
         song_ids: []
@@ -880,11 +881,10 @@ async function main() {
     user_data = await get_user_data();
     let main_ul;
     const wait = setInterval(() => {
-        console.log("waiting");
         main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
         if (main_ul !== null) {
             clearInterval(wait);
-            console.log("found");
+            
             if (document.querySelector(".main_btn") !== null) {
                 return;
             }
