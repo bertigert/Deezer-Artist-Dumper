@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
+// @version      1.4
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -15,18 +15,20 @@ function set_css() {
     css.type = "text/css";
     css.textContent = `
 .main_btn {
-    min-width: 32px;
+    min-width: var(--tempo-sizes-size-xl);
     border-radius: 50%;
-    transition-duration: 0.2s;
 }
-.main_btn svg path {
-    fill: currentcolor;
-}
-.main_btn.active svg path{
-    fill: var(--tempo-colors-text-accent-primary-default);
-}
-.main_btn:hover {
+.main_btn:hover, .create_new_regex_btn:hover, .my_textarea:hover {
   background-color: var(--tempo-colors-background-neutral-tertiary-hovered);
+}
+.main_btn.active {
+    color: var(--tempo-colors-text-accent-primary-default);
+}
+.main_btn_text {
+    display: inline-block;
+    padding-top: 4.4px;
+    scale: 3.5;
+    pointer-events: none;
 }
 
 .main_div {
@@ -59,30 +61,40 @@ function set_css() {
     resize: vertical;
     overflow-y: auto;
 }
-.my_textarea:hover {
-    border-color: var(--tempo-colors-text-neutral-secondary-default);
+.my_textarea:hover, .my_dropdown:hover, .searchbar:hover, .regex_input:hover, .min_song_length_input:hover {
+    border-color: var(--tempo-colors-text-neutral-secondary-default) !important;
 }
 
-.toggles {
-    padding: 5px 5px;
-    border-bottom: 1px solid var(--tempo-colors-divider-neutral-primary-default);
+.options_div {
+    padding: 5px;
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
+    box-sizing: border-box;
+    border: 1px solid var(--tempo-colors-divider-neutral-primary-default);
 }
-.toggles label {
-    margin-left: 10px;
+.options_div .song_type_options_div {
+    padding: 5px;
+    display: grid;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.7fr) minmax(0, 0.65fr) minmax(0, 0.7fr);
 }
-.toggles input {
+.options_div .song_type_options_div input {
     margin-left: 5px;
 }
 
 .my_dropdown {
-    margin-left: 10px;
     font-size: 14px;
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 4px;
 }
-.my_dropdown:hover {
-    border-color: var(--tempo-colors-text-neutral-secondary-default);
+
+.min_song_length_input {
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-radius: 4px;
+    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    padding: 5px;
+    margin-left: 5px;
 }
 
 .searchbar {
@@ -93,9 +105,6 @@ function set_css() {
     margin-top: 5px;
     padding: 8px 11px;
 }
-.searchbar:hover {
-    border-color: var(--tempo-colors-text-neutral-secondary-default);
-}
 
 .new_playlist_btn {
     width: 100%;
@@ -103,16 +112,12 @@ function set_css() {
     align-items: center;
     padding: 8px 11px;
 }
-.new_playlist_btn svg {
-    width: 24px;
-    height: 24px;
-    fill: var(--tempo-colors-text-accent-primary-default);
-}
-.new_playlist_btn svg path{
-    fill: var(--tempo-colors-text-accent-primary-default);
-}
 .new_playlist_btn span {
     color: var(--tempo-colors-text-accent-primary-default);
+}
+.new_playlist_btn .plus_sign {
+    padding: 4.4px 8px 0 5px;
+    scale: 3;
 }
 
 .playlist_ul {
@@ -146,10 +151,78 @@ function set_css() {
 .action_btn:hover {
     background-color: var(--tempo-colors-background-accent-primary-hovered);
 }
+
+.regex_parent_group {
+    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+}
+.regex_dropdown_toggle_btn {
+    width: 93%;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: left;
+    padding: 8px 15px;
+}
+.regex_dropdown_toggle_btn::before {
+    content: "▶";
+}
+.regex_dropdown.open .regex_dropdown_toggle_btn::before {
+    content: "▼";
+}
+.regex_dropdown.open .regex_dropdown_menu {
+    max-height: 150px;
+}
+
+.create_new_regex_btn {
+    border-radius: 40%;
+    font-size: 20px;
+}
+
+.regex_dropdown_menu {
+    overflow-x: scroll;
+    overflow: auto;
+    max-height: 0;
+    transition: max-height 0.3s ease;
+}
+.regex_dropdown_item {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 1.3fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr);
+    box-sizing: border-box;
+    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    padding: 4px 2px;
+}
+
+.regex_dropdown_item select {
+    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-radius: 4px;
+}
+.regex_dropdown_item .regex_input {
+    color: var(--color-text-secondary);
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-radius: 6px;
+    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    padding: 2px 4px;
+    margin: 0px 3px;
+}
+.regex_dropdown_item .regex_input.error {
+   background-color: #f0404040;
+}
+.regex_dropdown_item .applies_for_checkbox {
+    transform: scale(0.5);
+}
+.regex_delete_btn {
+    font-size: 18px;
+    scale: 1.1;
+}
+.regex_delete_btn:hover {
+    scale: 1.2;
+}
+.regex_dropdown_item span {
+    margin-left: 3px;
+}
 `
     document.querySelector("head").appendChild(css);
 }
-
 
 // data stuff
 
@@ -199,11 +272,22 @@ function get_config() {
             ep: true,
             singles: true,
             album: true,
-            featured: false,
+            featured: true,
         },
-        order: "RELEASE_DATE",
-        regexes: "(\\(|- )(((super )?slowed(( &| \\+| *,) reverb)?)|(sped up)|(reverb))\\)?$#i"
-        // https://regex101.com/r/f0jn2M/1
+        order: 0, // 0 = RELEASE_DATE, 1 = RANK
+        min_length: 60,
+        regexes: [
+            {
+                str: String.raw`(\(|- )(((super )?slowed(( &| \+| *,) reverb)?)|(sped up)|(reverb)|(8d audio))\)? *$`, // https://regex101.com/r/aAmeyk/1
+                flags: "i",
+                type: 0, // 0 = blacklist, 1 = whitelist
+                applies_to: {
+                    song: true,
+                    artist: false,
+                    album: true
+                }
+            }
+        ]
     }
 }
 function set_config() {
@@ -211,7 +295,7 @@ function set_config() {
 }
 
 
-async function get_all_songs(auth_token, artist_id) {
+async function get_all_songs(auth_token, artist_id, regexes) {
     async function get_all_albums() {
         async function request_albums(last_song, roles, types) {
             const r = await fetch("https://pipe.deezer.com/api", {
@@ -227,7 +311,7 @@ async function get_all_songs(auth_token, artist_id) {
                         "cursor": last_song,
                         "subType": null,
                         "roles": roles,
-                        "order": config.order,
+                        "order": config.order === 0 ? "RELEASE_DATE" : "RANK",
                         "types": types
                     },
                     "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
@@ -275,7 +359,13 @@ async function get_all_songs(auth_token, artist_id) {
 
         let data = await get_albums(null);
         for (let album of data.artist.albums.edges) {
-            albums.push([album.node.id, album.node.displayTitle]);
+            // filter album titles here
+            if (does_string_match(album.node.displayTitle, regexes.whitelist.album, true) &&
+                !does_string_match(album.node.displayTitle, regexes.blacklist.album, false)) {
+                albums.push([album.node.id, album.node.displayTitle]);
+            } else {
+                output(INFO, `Album ${album.node.displayTitle} is blacklisted`);
+            }
         }
         // could prob do it better recursively
         // this is a bit broken if not everything is ticked as we sometimes send 2 requests for featured and everything else.
@@ -284,7 +374,12 @@ async function get_all_songs(auth_token, artist_id) {
         while (data.artist.albums.pageInfo.hasNextPage) {
             data = await get_albums(data.artist.albums.pageInfo.endCursor);
             for (let album of data.artist.albums.edges) {
-                albums.push([album.node.id, album.node.displayTitle]);
+                if (does_string_match(album.node.displayTitle, regexes.whitelist.album, true) &&
+                    !does_string_match(album.node.displayTitle, regexes.blacklist.album, false)) {
+                    albums.push([album.node.id, album.node.displayTitle]);
+                } else {
+                    output(INFO, `Album ${album.node.displayTitle} is blacklisted`);
+                }
             }
         }
         return albums;
@@ -304,25 +399,37 @@ async function get_all_songs(auth_token, artist_id) {
         const resp = await r.json();
         const album_songs = [];
         for (let album_song of resp.results.data) {
-            let is_from_artist = false;
-            for (let artist of album_song.ARTISTS) {
-                if (artist.ART_ID === artist_id) {
-                    is_from_artist = true;
-                    break;
+            const song_title = `${album_song.SNG_TITLE} ${album_song.VERSION}`;
+            // if song is whitelisted but not blacklisted
+            if (does_string_match(song_title, regexes.whitelist.song, true) &&
+                !does_string_match(song_title, regexes.blacklist.song, false)) {
+                // if the current artist contributed and if every artist is whitelisted but not blacklisted
+                if (album_song.ARTISTS.some(
+                    (artist) => (
+                        artist.ART_ID === artist_id &&
+                        does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) &&
+                        !does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)))
+                   )
+                {
+                    if (Number(album_song.DURATION) >= config.min_length) {
+                        album_songs.push([album_song.SNG_ID, `${album_song.SNG_TITLE} ${album_song.VERSION}`.trim()]);
+                    } else {
+                        output(INFO, `${song_title} is too short`);
+                    }
+                } else {
+                    output(INFO, `An artist in ${song_title} is blacklisted`);
                 }
+            } else {
+                output(INFO, `Song ${song_title} is blacklisted`);
             }
-            if (is_from_artist) {
-                album_songs.push([album_song.SNG_ID, `${album_song.SNG_TITLE} ${album_song.VERSION}`]);
-            }
-
         }
+
         return album_songs;
     }
 
     // get all songs from albums asynchronous, 10 at a time to avoid ratelimits
     const albums = await get_all_albums();
-    let songs = {};
-    let promises = [];
+    const songs = {};
 
     for (let i = 0; i < albums.length; i += 10) {
         const chunk = albums.slice(i, i + 10);
@@ -415,15 +522,49 @@ async function get_songs_in_playlist(playlist_id) {
 
 
 
-function validate_regex(regex_str) {
+function validate_regex(regex_str, flags) {
     try {
-        const l = regex_str.split("#")
-        const flags = l[l.length-1]
-        regex_str = regex_str.substr(0, regex_str.length-flags.length-1) // remove the flags
         return RegExp(regex_str, flags);
     } catch (e) {
         return null;
     }
+}
+function does_string_match(str, regexes, return_if_empty) {
+    return regexes.length === 0 ? return_if_empty : regexes.some(regex => regex.test(str));
+}
+function parse_regexes() {
+    const regexes = {
+        blacklist: {
+            song: [],
+            artist: [],
+            album: []
+        },
+        whitelist: {
+            song: [],
+            artist: [],
+            album: []
+        }
+    }
+    for (let regex of config.regexes) {
+        if (regex.str.trim() === "") {
+            continue;
+        }
+
+        const regex_exp = validate_regex(regex.str, regex.flags);
+        if (!regex_exp) {
+            output(ERROR, `Regex "${regex.str}" with flags "${regex.flags}" is not valid, exiting`, true);
+            return null;
+        }
+
+        for (let applies_to of Object.entries(regex.applies_to)) {
+            if (applies_to[1]) {
+                regexes[["blacklist", "whitelist"][regex.type]][applies_to[0]].push(regex_exp);
+            }
+        }
+        output(INFO, "Regexes valid", true);
+    }
+
+    return regexes;
 }
 
 function download_dump(data, time) {
@@ -437,7 +578,7 @@ function download_dump(data, time) {
     }).replaceAll("-", "").replaceAll(':', '').replace(" ", "_");
 
     const link = document.createElement('a');
-    link.download = `artistdump_${get_current_artist_name().replaceAll(" ", "_")}_${formatted_time}.json`;
+    link.download = `artistdump_${get_current_artist_name().replaceAll(" ", "-")}_${formatted_time}.json`;
 
     if (typeof(data) === "object") {
         data = JSON.stringify(data, null, 4)
@@ -454,36 +595,27 @@ function download_dump(data, time) {
 async function submit() {
     const start_time = Date.now();
 
+    const regexes = parse_regexes();
+    if (!regexes) {
+        return;
+    }
     set_config();
 
-    let regexes_str = config.regexes.split(/(?<!\\)\n/); // match \n but not \\n
-    const regexes = []
-    for (let regex_str of regexes_str) {
-        let regex = validate_regex(regex_str);
-        if (regex === null) {
-            output(ERROR, `Regex "${regex_str}" is not valid, exiting`, true);
-            return;
-        }
-        regexes.push(regex);
-    }
-
     download_btn?.remove(); // only remove if new data is there in case the user forgot to download from the last run
-
-    output(INFO, "Regexes valid", true);
 
     const data = {
         artist_name: get_current_artist_name(),
         artist_id: get_current_artist_id(),
-        regexes: regexes_str,
+        regexes: config.regexes,
         song_ids: []
     }
-    download_btn = create_download_btn(data, new Date()); // reference to data not data
+    download_btn = create_download_btn(data, new Date()); // reference to data not by value
     main_div.appendChild(download_btn);
 
     const auth_token = await get_auth_token();
 
     output(INFO, "Getting songs");
-    const songs = await get_all_songs(auth_token, data.artist_id);
+    const songs = await get_all_songs(auth_token, data.artist_id, regexes);
 
     let text = "";
 
@@ -501,28 +633,15 @@ async function submit() {
     }
 
     for (let song of Object.entries(songs)) {
-        let is_blacklisted = false;
-
-        for (let regex of regexes) {
-            if (regex.test(song[1]) === true) {
-                is_blacklisted = true;
-                output(INFO, `${song[1]} is blacklisted`);
-                console.log(`${song[1]} matched ${regex.toString()}`);
-                break;
-            }
-        }
-
-        if (!is_blacklisted) {
-            data.song_ids.push(song[0]);
-            text+=song[1]+", ";
-        }
+        data.song_ids.push(song[0]);
+        text+=song[1]+", ";
     }
 
     if (data.song_ids.length === 0) {
         output(INFO, "There are no songs to add, exiting");
         return;
     }
-    data.song_ids.reverse(); // sorting playlist afterwards doesnt really work as we add all songs at the same time so we need to sort it here since the order we receive is fifo but we need filo (basically)
+    data.song_ids.reverse(); // the order we receive is fifo but we need filo (basically). doesnt matter rly tho as sorting playlist afterwards doesnt really work as we add all songs at the same time
 
     const artist_name = get_current_artist_name();
     if (selected_playlist.getAttribute("data-id") === "-1") {
@@ -552,7 +671,7 @@ async function submit() {
         output(INFO, `Adding ${data.song_ids.length} songs (${text.substr(0, text.length-3)})`);
 
 
-        let r = await add_songs_to_playlist(selected_playlist.getAttribute("data-id"), data.song_ids);
+        const r = await add_songs_to_playlist(selected_playlist.getAttribute("data-id"), data.song_ids);
         if (r.error.length !== 0) {
             console.error("Failed to add songs to playlist", r.error);
             if (r.error.ERROR_DATA_EXISTS !== undefined) {
@@ -572,12 +691,11 @@ async function submit() {
 }
 
 
-
 // more or less only visual stuff
 
 
 function output(type, text, clean) {
-    let time = new Date();
+    const time = new Date();
     if (clean) {
         output_textarea.value = "";
     }
@@ -595,21 +713,21 @@ function change_selected_playlist(new_playlist) {
 }
 
 
+
 function create_main_btn(main_div) {
-    const main_btn = document.createElement("button");
-    main_btn.innerHTML = `
-<button type="button" class="main_btn">
-    <svg viewBox="0 0 24 24">
-        <path
-            fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
-        </path>
-    </svg>
-</button>`
+    const main_btn = document.createElement("button"); // idk, a button as a wrapper works the best
+    main_btn.className = "main_btn";
+
+    const text_span = document.createElement("span");
+    text_span.className = "main_btn_text";
+    text_span.textContent = "⁺"; //₊
+    main_btn.appendChild(text_span);
+
     let show = false;
     main_btn.onclick = () => {
         show = !show
         main_div.style.display = show ? "block" : "none";
-        main_btn.querySelector("button").className = show ? "main_btn active": "main_btn";
+        main_btn.className = show ? "main_btn active": "main_btn";
     }
     return main_btn;
 }
@@ -621,46 +739,203 @@ function create_main_div() {
     return main_div;
 }
 
+function create_regexes_dropdown() {
+    function create_item(regex_ref) {
+        const dropdown_item = document.createElement("div");
+        dropdown_item.className = "regex_dropdown_item";
 
-function create_blacklist_textarea() {
-    const blacklist_textarea = document.createElement("textarea");
-    blacklist_textarea.className = "my_textarea";
-    blacklist_textarea.placeholder = "Regex pattern(s) to blacklist song titles. Javascript flags are the last part, seperated from the rest by a # (e.g. #igd). If a regex is invalid the whole process will be stopped before adding songs. 1 Pattern/Line";
-    blacklist_textarea.title = "Regex pattern(s) to blacklist song titles. Javascript flags are the last part, seperated from the rest by a # (e.g. #igd). If a regex is invalid the whole process will be stopped before adding songs. 1 Pattern/Line";
-    blacklist_textarea.value = config.regexes;
-    blacklist_textarea.spellcheck = false;
-    blacklist_textarea.oninput = () => {
-        config.regexes = blacklist_textarea.value;
+        const allowed_flags = ["d", "g", "i", "m", "s", "u", "v", "y"]
+        const regex_input = document.createElement("input")
+        regex_input.className = "regex_input";
+        regex_input.placeholder = "Regex";
+        regex_input.value = regex_ref.str;
+        regex_input.oninput = () => {
+            regex_ref.str = regex_input.value; // this will also update if its wrong, but this is better imo
+            if (!validate_regex(regex_input.value)) {
+                regex_input.classList.add("error");
+            } else {
+                regex_input.classList.remove("error");
+            }
+        }
+        regex_input.onchange = () => {
+            set_config();
+        }
+
+        const regex_flags_input = document.createElement("input")
+        regex_flags_input.className = "regex_input";
+        regex_flags_input.placeholder = "Flags";
+        regex_flags_input.value = regex_ref.flags;
+        regex_flags_input.oninput = () => {
+            regex_ref.flags = regex_flags_input.value; // this will also update if its wrong, but this is better imo
+            const flags = regex_flags_input.value.split("");
+            if (!flags.every(e => allowed_flags.includes(e)) || new Set(flags).size !== flags.length) {
+                regex_flags_input.classList.add("error");
+            } else {
+                regex_flags_input.classList.remove("error");
+            }
+        }
+        regex_flags_input.onchange = () => {
+            set_config();
+        }
+
+        const type_dropdown = document.createElement("select");
+        type_dropdown.className = "my_dropdown";
+        const blacklist_opt = document.createElement("option");
+        blacklist_opt.textContent = "Blacklist";
+        const whitelist_opt = document.createElement("option");
+        whitelist_opt.textContent = "Whitelist";
+        type_dropdown.onchange = () => {
+            regex_ref.type = type_dropdown.selectedIndex;
+            set_config();
+        }
+        type_dropdown.append(blacklist_opt, whitelist_opt);
+        type_dropdown.selectedIndex = regex_ref.type;
+
+        const applies_to_song_checkbox = document.createElement("input");
+        applies_to_song_checkbox.type = "checkbox";
+        applies_to_song_checkbox.className = "applies_for_checkbox";
+        applies_to_song_checkbox.checked = regex_ref.applies_to.song;
+        applies_to_song_checkbox.onclick = () => {
+            regex_ref.applies_to.song = !regex_ref.applies_to.song;
+            set_config();
+        }
+
+        const applies_to_artist_checkbox = applies_to_song_checkbox.cloneNode();
+        applies_to_artist_checkbox.checked = regex_ref.applies_to.artist;
+        applies_to_artist_checkbox.onclick = () => {
+            regex_ref.applies_to.artist = !regex_ref.applies_to.artist;
+            set_config();
+        }
+
+        const applies_to_album_checkbox = applies_to_song_checkbox.cloneNode();
+        applies_to_album_checkbox.checked = regex_ref.applies_to.album;
+        applies_to_album_checkbox.onclick = () => {
+            regex_ref.applies_to.album = !regex_ref.applies_to.album;
+            set_config();
+        }
+
+        const delete_btn = document.createElement("button")
+        delete_btn.textContent = "🗑";
+        delete_btn.className = "regex_delete_btn";
+
+        delete_btn.onclick = () => {
+            config.regexes.splice(config.regexes.indexOf(regex_ref), 1);
+            dropdown_item.remove();
+            set_config();
+        }
+
+        dropdown_item.append(regex_input, regex_flags_input, type_dropdown, applies_to_song_checkbox, applies_to_artist_checkbox, applies_to_album_checkbox, delete_btn);
+
+        return dropdown_item;
     }
 
-    return blacklist_textarea;
+    // create fundamental structure
+    const dropdown = document.createElement("div");
+    dropdown.className = "regex_dropdown";
+
+    const dropdown_menu = document.createElement("div");
+    dropdown_menu.className = "regex_dropdown_menu";
+
+    // create the button to toggle and the button to create a new regex
+
+    const dropdown_btn_and_create_new_btn_group = document.createElement("ul");
+    dropdown_btn_and_create_new_btn_group.setAttribute("data-orientation", "horizontal");
+    dropdown_btn_and_create_new_btn_group.className = "regex_parent_group";
+
+    const dropdown_btn = document.createElement("button");
+    dropdown_btn.textContent = " Regexes";
+    dropdown_btn.className = "regex_dropdown_toggle_btn";
+    dropdown_btn.onclick = () => {
+        dropdown.classList.toggle("open");
+    }
+
+    const create_new_btn = document.createElement("button");
+    create_new_btn.className = "create_new_regex_btn";
+    create_new_btn.textContent = "➕";
+    create_new_btn.onclick = () => {
+        dropdown.classList.add("open");
+        const new_regex = {
+            str: "",
+            flags: "",
+            type: 0, // 0 = blacklist, 1 = whitelist
+            applies_to: {
+                song: true,
+                artist: false,
+                album: false
+            }
+        }
+        config.regexes.push(new_regex);
+        const new_item = create_item(config.regexes[config.regexes.length-1])
+        dropdown_menu.appendChild(new_item);
+        set_config();
+    }
+
+    dropdown_btn_and_create_new_btn_group.append(dropdown_btn, create_new_btn);
+
+    // create headers
+    const header_item = document.createElement("div");
+    header_item.className = "regex_dropdown_item";
+
+    const regex_inpt_header = document.createElement("span");
+    regex_inpt_header.textContent = "Regex";
+    regex_inpt_header.title = "The regex used to filter";
+
+    const regex_flags_inpt_header = document.createElement("span");
+    regex_flags_inpt_header.textContent = "Flags";
+    regex_flags_inpt_header.title = "The regex flags";
+
+    const type_header = document.createElement("span");
+    type_header.textContent = "Type";
+    type_header.title = "Wether to use this regex to blacklist or whitelist";
+
+    const song_header = document.createElement("span");
+    song_header.textContent = "Song";
+    song_header.title = "Apply this regex to song names";
+
+    const artist_header = document.createElement("span");
+    artist_header.textContent = "Artist";
+    artist_header.title = "Apply this regex to artist/contributer names";
+
+    const album_header = document.createElement("span");
+    album_header.textContent = "Album";
+    album_header.title = "Apply this regex to album names";
+    header_item.append(regex_inpt_header, regex_flags_inpt_header, type_header, song_header, artist_header, album_header);
+    dropdown_menu.appendChild(header_item);
+
+    dropdown_menu.append( ...(config.regexes.map( (regex) => create_item(regex) ) ) );
+
+    dropdown.append(dropdown_btn_and_create_new_btn_group, dropdown_menu)
+
+    return dropdown;
+
 }
 
+function create_options() {
+    const options_div = document.createElement("div");
+    options_div.className = "options_div";
 
-function create_song_types_options() {
-    const options_ul = document.createElement("ul");
-    options_ul.className = "toggles";
-    options_ul.role = "group";
-    options_ul.setAttribute("data-orientation", "horizontal");
-
+    const song_type_options = document.createElement("div");
+    song_type_options.className = "song_type_options_div";
     const types = ["EP", "Singles", "Album", "Featured"]
-    let inpt, lbl;
+    let input, lbl;
     for (let type of types) {
-        inpt = document.createElement("input");
-        inpt.type = "checkbox";
-        inpt.title = `Wether to include ${type} or not`
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.title = `Wether to include ${type} or not`
 
         lbl = document.createElement("label");
         lbl.textContent = type;
+        lbl.appendChild(input);
 
         type = type.toLowerCase();
 
-        inpt.checked = config.toggles[type]
-        inpt.onclick = () => {
+        input.checked = config.toggles[type]
+        input.onclick = () => {
             config.toggles[type] = !config.toggles[type];
+            set_config();
         }
 
-        options_ul.append(lbl, inpt);
+        song_type_options.appendChild(lbl);
     }
 
 
@@ -672,25 +947,38 @@ function create_song_types_options() {
     order_dropdown.className = "my_dropdown";
     order_dropdown.title = "Order of songs. Does not really affect anything as the songs get added all at once so deezer sorts them by song_id internally which is MOSTLY equal to release date, but can have exceptions.";
     order_dropdown.append(...opts)
+    order_dropdown.selectedIndex = config.order;
     order_dropdown.onchange = () => { // since we only have two elements, we know that if it changes it is the other option
-        config.order = config.order === "RELEASE_DATE" ? "RANK" : "RELEASE_DATE";
+        config.order = order_dropdown.selectedIndex;
+        set_config();
     }
 
-    options_ul.appendChild(order_dropdown);
+    const min_song_length_input = document.createElement("input");
+    min_song_length_input.type = "number";
+    min_song_length_input.className = "min_song_length_input";
+    min_song_length_input.placeholder = "Min. Length";
+    min_song_length_input.title = "Minimum Song Length in seconds";
+    min_song_length_input.value = config.min_length;
+    min_song_length_input.onchange = () => {
+        config.min_length = Number(min_song_length_input.value);
+        set_config();
+    }
 
-    return options_ul;
+    options_div.append(song_type_options, order_dropdown, min_song_length_input);
+
+    return options_div;
 }
 
 function create_search_bar(playlists, playlist_ul) {
-    let inpt = document.createElement("input")
-    inpt.placeholder = "Search Playlist";
-    inpt.className = "searchbar";
-    inpt.oninput = (e) => {
+    const input = document.createElement("input")
+    input.placeholder = "Search Playlist";
+    input.className = "searchbar";
+    input.oninput = (e) => {
         for (let playlist of playlists) {
-            playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`).style.display = playlist.TITLE.toLowerCase().includes(inpt.value.toLowerCase()) ? "" : "none";
+            playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`).style.display = playlist.TITLE.toLowerCase().includes(input.value.toLowerCase()) ? "" : "none";
         }
     }
-    return inpt;
+    return input;
 }
 
 
@@ -700,15 +988,13 @@ function create_new_playlist_btn() {
     new_playlist_btn.className = "new_playlist_btn";
     new_playlist_btn.title = "(Recommended) Creates a new private playlist with the name and picture of the artist where the songs will be added to.";
     new_playlist_btn.setAttribute("data-id", "-1");
-    new_playlist_btn.innerHTML = `
-<span>
-    <svg viewBox="0 0 24 24">
-        <path
-            fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
-        </path>
-    </svg>
-</span>
-<span>New Playlist</span>`
+
+    const plus_sign_span = document.createElement("span");
+    plus_sign_span.textContent = "⁺";
+    plus_sign_span.className = "plus_sign";
+    const text_span = document.createElement("span");
+    text_span.textContent = "New Playlist";
+    new_playlist_btn.append(plus_sign_span, text_span);
 
     new_playlist_btn.onclick = () => {
         change_selected_playlist(new_playlist_btn);
@@ -774,20 +1060,20 @@ function create_output_textarea() {
 
 
 function create_load_btn(data, time) {
-    const file_inpt = document.createElement("input");
-    file_inpt.type = "file";
-    file_inpt.multiple = true;
-    file_inpt.style.display = "none";
+    const file_input = document.createElement("input");
+    file_input.type = "file";
+    file_input.multiple = true;
+    file_input.style.display = "none";
 
     const load_btn = document.createElement("button");
     load_btn.textContent = "Load Dump";
     load_btn.className = "action_btn";
     load_btn.title = "Load data from an earlier dump."
     load_btn.onclick = () => {
-        file_inpt.click();
+        file_input.click();
     };
 
-    file_inpt.onchange = (e) => {
+    file_input.onchange = (e) => {
         last_dump_song_ids = [];
         const files = e.target.files;
         load_btn.textContent = "0 Dumps (Check JSON/console)";
@@ -842,19 +1128,19 @@ function create_download_btn(data, time) {
 
 // globals
 let config;
-let selected_playlist;
 let user_data;
-let output_textarea;
-let main_div;
-let download_btn;
 let last_dump_song_ids;
+let selected_playlist;
+let output_textarea;
+let download_btn;
+let main_div;
 
 const ERROR = "!";//"ERROR";
 const INFO = "?";//"INFO";
 const SUCCESS = "*";//"SUCCESS";
 
 let last_url = location.href;
-navigation.addEventListener('navigate', (e) => {
+window.navigation.addEventListener('navigate', (e) => {
     const target_url = e.destination.url;
     console.log("change", last_url, target_url);
 
@@ -881,10 +1167,11 @@ async function main() {
     user_data = await get_user_data();
     let main_ul;
     const wait = setInterval(() => {
+        console.log("waiting");
         main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
         if (main_ul !== null) {
             clearInterval(wait);
-            
+            console.log("found");
             if (document.querySelector(".main_btn") !== null) {
                 return;
             }
@@ -896,8 +1183,8 @@ async function main() {
             main_ul.style.position = "relative";
 
             main_div = create_main_div();
-            const blacklist_textarea = create_blacklist_textarea();
-            const options_ul = create_song_types_options();
+            const regex_dropdown = create_regexes_dropdown();
+            const options_ul = create_options();
 
 
             let new_playlist_btn = create_new_playlist_btn();
@@ -913,7 +1200,7 @@ async function main() {
             output_textarea = create_output_textarea();
             const main_btn = create_main_btn(main_div);
 
-            main_div.append(blacklist_textarea, options_ul, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
+            main_div.append(regex_dropdown, options_ul, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
             main_ul.append(main_btn, main_div);
         }
     }, 200)
