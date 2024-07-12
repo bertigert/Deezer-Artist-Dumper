@@ -16,18 +16,26 @@ for file in os.listdir(path):
                 dumps[data["artist_id"]] = {
                     "artist_name": data.get("artist_name", file.split("_", 2)[1]), # if the name is not in the dump, it tries to get it from the file name 
                     "artist_id": data["artist_id"],
-                    "regexes": set(data["regexes"]),
+                    "regexes": data["regexes"],
                     "song_ids": set(data["song_ids"]),
                 }
             else:
                 dumps[data["artist_id"]]["song_ids"].update(data["song_ids"])
-                dumps[data["artist_id"]]["regexes"].update(data["regexes"])
+                
+                for new_regex in data["regexes"]:
+                    regex_already_present = False
+                    for already_present_regex in dumps[data["artist_id"]]["regexes"]:
+                        if new_regex == already_present_regex:
+                            regex_already_present = True
+                            break
+                    if not regex_already_present:
+                        dumps[data["artist_id"]]["regexes"].append(new_regex)
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 for dump in dumps.values():
     dump["regexes"] = list(dump["regexes"])
     dump["song_ids"] = list(dump["song_ids"])
     
-    filename = f"artistdump_{dump['artist_name']}_{timestamp}.json"
+    filename = f"MERGED_artistdump_{dump['artist_name']}_{timestamp}.json"
     with open(path+filename, "w") as f:
         f.write(json.dumps(dump, indent=4))
