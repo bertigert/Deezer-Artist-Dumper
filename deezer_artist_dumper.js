@@ -715,12 +715,12 @@ function change_selected_playlist(new_playlist) {
 
 
 function create_main_btn(main_div) {
-    const main_btn = document.createElement("button"); // idk, a button as a wrapper works the best
+    const main_btn = document.createElement("button");
     main_btn.className = "main_btn";
 
     const text_span = document.createElement("span");
     text_span.className = "main_btn_text";
-    text_span.textContent = "⁺"; //₊
+    text_span.textContent = "⁺";
     main_btn.appendChild(text_span);
 
     let show = false;
@@ -907,8 +907,8 @@ function create_regexes_dropdown() {
     dropdown.append(dropdown_btn_and_create_new_btn_group, dropdown_menu)
 
     return dropdown;
-
 }
+
 
 function create_options() {
     const options_div = document.createElement("div");
@@ -948,7 +948,7 @@ function create_options() {
     order_dropdown.title = "Order of songs. Does not really affect anything as the songs get added all at once so deezer sorts them by song_id internally which is MOSTLY equal to release date, but can have exceptions.";
     order_dropdown.append(...opts)
     order_dropdown.selectedIndex = config.order;
-    order_dropdown.onchange = () => { // since we only have two elements, we know that if it changes it is the other option
+    order_dropdown.onchange = () => {
         config.order = order_dropdown.selectedIndex;
         set_config();
     }
@@ -1184,7 +1184,7 @@ async function main() {
 
             main_div = create_main_div();
             const regex_dropdown = create_regexes_dropdown();
-            const options_ul = create_options();
+            const options_div = create_options();
 
 
             let new_playlist_btn = create_new_playlist_btn();
@@ -1200,7 +1200,7 @@ async function main() {
             output_textarea = create_output_textarea();
             const main_btn = create_main_btn(main_div);
 
-            main_div.append(regex_dropdown, options_ul, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
+            main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
             main_ul.append(main_btn, main_div);
         }
     }, 200)
