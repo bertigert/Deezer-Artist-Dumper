@@ -11,7 +11,10 @@ I do not know if "all" are really all songs, with all I mean every song which is
 - Lets you choose if you want to include EPs, Singles, Albums, Features (Although Deezer shows the whole Album as a Feature, only songs with the artist are added)
 - Lets you choose if you want to add songs to a new playlist with the artist profile name/picture or an already existent playlist
 - Lets you download a dump log which can be used in later dumps (also in combination with other dumps) to ignore songs which have already been added once (useful if you want to catch up on an artist)
-- Lets you use Regex to blacklist/whitelist (blacklist > whitelist) certain song/album/contributor name (meaning if a blacklisted artist has contributed, the song is blacklisted)
+- Lets you use Regex to blacklist/whitelist (blacklist > whitelist) certain
+    - song name
+    - album name (note that every song is an album, so an album blacklist also blocks songs **if** the artist did not specify a different album name. If you know what you're doing, you can use this feature to improve the speed by alot, as we don't need to get the songs for the album (mostly useful for singles))
+    - contributor name (meaning if a blacklisted artist has contributed, the song is blacklisted)
 - A dump merge script is included which can be used to merge multiple dumps into a single dump, simplifying the dump loading process for later uses (a update dumps script is also included which should update old version dumps to a the new version)
 ![image](https://github.com/user-attachments/assets/7b0e6559-3fc5-42d8-b12b-116cb547b9fb)
 
