@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.4.1
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        unsafeWindow
 // ==/UserScript==
 
 function set_css() {
@@ -185,7 +186,7 @@ function set_css() {
 }
 .regex_dropdown_item {
     display: grid;
-    grid-template-columns: minmax(0, 4fr) minmax(0, 1.3fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr);
+    grid-template-columns: minmax(0, 3.5fr) minmax(0, 1.1fr) minmax(0, 1.8fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.5fr);
     box-sizing: border-box;
     border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     padding: 4px 2px;
@@ -202,7 +203,7 @@ function set_css() {
     border-radius: 6px;
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     padding: 2px 4px;
-    margin: 0px 3px;
+    margin-right: 3px;
 }
 .regex_dropdown_item .regex_input.error {
    background-color: #f0404040;
@@ -281,6 +282,7 @@ function get_config() {
                 str: String.raw`(\(|- )(((super )?slowed(( &| \+| *,) reverb)?)|(sped up)|(reverb)|(8d audio))\)? *$`, // https://regex101.com/r/aAmeyk/1
                 flags: "i",
                 type: 0, // 0 = blacklist, 1 = whitelist
+                for_artist: -1, // -1 = every artist, any other number is artist id
                 applies_to: {
                     song: true,
                     artist: false,
@@ -290,6 +292,7 @@ function get_config() {
         ]
     }
 }
+
 function set_config() {
     GM_setValue("artist_dumper_config", JSON.stringify(config));
 }
@@ -433,7 +436,6 @@ async function get_all_songs(auth_token, artist_id, regexes) {
 
     for (let i = 0; i < albums.length; i += 10) {
         const chunk = albums.slice(i, i + 10);
-
         let albumPromises = chunk.map(async album => {
             output(INFO, "Getting songs for " + album[1]);
             const albumSongs = await get_all_songs_from_album(album[0]);
@@ -545,8 +547,9 @@ function parse_regexes() {
             album: []
         }
     }
+    const curr_artist_id = get_current_artist_id();
     for (let regex of config.regexes) {
-        if (regex.str.trim() === "") {
+        if (regex.str.trim() === "" || (regex.for_artist !== -1 && regex.for_artist !== curr_artist_id )) {
             continue;
         }
 
@@ -558,6 +561,7 @@ function parse_regexes() {
 
         for (let applies_to of Object.entries(regex.applies_to)) {
             if (applies_to[1]) {
+                console.log(`Regex "${regex_exp}" is valid (${["blacklist", "whitelist"][regex.type]}) (${applies_to[0]})`);
                 regexes[["blacklist", "whitelist"][regex.type]][applies_to[0]].push(regex_exp);
             }
         }
@@ -791,6 +795,21 @@ function create_regexes_dropdown() {
         type_dropdown.append(blacklist_opt, whitelist_opt);
         type_dropdown.selectedIndex = regex_ref.type;
 
+        const for_artist_dropdown = document.createElement("select");
+        for_artist_dropdown.style.marginLeft = "3px";
+        for_artist_dropdown.className = "my_dropdown";
+        const all_artists_opt = document.createElement("option");
+        all_artists_opt.textContent = "All⠀ Artists";
+        const this_artist_opt = document.createElement("option");
+        this_artist_opt.textContent = "This Artist";
+        
+        for_artist_dropdown.onchange = () => {
+            regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? -1 : curr_artist_id;
+            set_config();
+        }
+        for_artist_dropdown.append(all_artists_opt, this_artist_opt);
+        for_artist_dropdown.selectedIndex = regex_ref.for_artist === -1 ? 0 : 1;
+
         const applies_to_song_checkbox = document.createElement("input");
         applies_to_song_checkbox.type = "checkbox";
         applies_to_song_checkbox.className = "applies_for_checkbox";
@@ -824,7 +843,7 @@ function create_regexes_dropdown() {
             set_config();
         }
 
-        dropdown_item.append(regex_input, regex_flags_input, type_dropdown, applies_to_song_checkbox, applies_to_artist_checkbox, applies_to_album_checkbox, delete_btn);
+        dropdown_item.append(regex_input, regex_flags_input, type_dropdown, for_artist_dropdown, applies_to_song_checkbox, applies_to_artist_checkbox, applies_to_album_checkbox, delete_btn);
 
         return dropdown_item;
     }
@@ -844,6 +863,7 @@ function create_regexes_dropdown() {
 
     const dropdown_btn = document.createElement("button");
     dropdown_btn.textContent = " Regexes";
+    dropdown_btn.title = "Use get_config in console to get every regex and other stuff";
     dropdown_btn.className = "regex_dropdown_toggle_btn";
     dropdown_btn.onclick = () => {
         dropdown.classList.toggle("open");
@@ -856,8 +876,9 @@ function create_regexes_dropdown() {
         dropdown.classList.add("open");
         const new_regex = {
             str: "",
-            flags: "",
+            flags: "i",
             type: 0, // 0 = blacklist, 1 = whitelist
+            for_artist: get_current_artist_id(),
             applies_to: {
                 song: true,
                 artist: false,
@@ -888,6 +909,10 @@ function create_regexes_dropdown() {
     type_header.textContent = "Type";
     type_header.title = "Wether to use this regex to blacklist or whitelist";
 
+    const for_artist_header = document.createElement("span");
+    for_artist_header.textContent = "For";
+    for_artist_header.title = "Apply this regex to the current artist or every artist";
+
     const song_header = document.createElement("span");
     song_header.textContent = "Song";
     song_header.title = "Apply this regex to song names";
@@ -899,10 +924,11 @@ function create_regexes_dropdown() {
     const album_header = document.createElement("span");
     album_header.textContent = "Album";
     album_header.title = "Apply this regex to album names";
-    header_item.append(regex_inpt_header, regex_flags_inpt_header, type_header, song_header, artist_header, album_header);
+    header_item.append(regex_inpt_header, regex_flags_inpt_header, type_header, for_artist_header, song_header, artist_header, album_header);
     dropdown_menu.appendChild(header_item);
 
-    dropdown_menu.append( ...(config.regexes.map( (regex) => create_item(regex) ) ) );
+    const curr_artist_id = get_current_artist_id();
+    dropdown_menu.append( ...(config.regexes.filter( (regex) => (regex.for_artist === -1 || regex.for_artist === curr_artist_id) ).map( (regex) => create_item(regex) ) ) );
 
     dropdown.append(dropdown_btn_and_create_new_btn_group, dropdown_menu)
 
@@ -1149,10 +1175,10 @@ window.navigation.addEventListener('navigate', (e) => {
     if (target_id.length > 1) { // current page is an artist
         if (last_id.length > 1) { // the last page was also an artist
             if (target_id[1].split("/", 1)[0] !== last_id[1].split("/", 1)[0]) { // the current and last artist arent the same
-                main();
+                artist_main();
             }
         } else {
-            main();
+            artist_main();
         }
 
     }
@@ -1160,15 +1186,14 @@ window.navigation.addEventListener('navigate', (e) => {
     last_url = target_url;
 });
 if (location.pathname.includes("/artist/")) {
-    main();
+    artist_main();
 }
 
-async function main() {
+async function artist_main() {
     user_data = await get_user_data();
-    let main_ul;
     const wait = setInterval(() => {
         console.log("waiting");
-        main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+        let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
         if (main_ul !== null) {
             clearInterval(wait);
             console.log("found");
@@ -1176,7 +1201,8 @@ async function main() {
                 return;
             }
 
-            config = get_config()
+            config = get_config();
+            unsafeWindow.get_config = get_config;
             last_dump_song_ids = [];
 
             set_css();
