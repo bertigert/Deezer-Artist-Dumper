@@ -407,8 +407,6 @@ async function get_all_songs(auth_token, artist_id, regexes) {
             if (does_string_match(song_title, regexes.whitelist.song, true) &&
                 !does_string_match(song_title, regexes.blacklist.song, false)) {
                 // if the current artist contributed and if every artist is whitelisted but not blacklisted
-                console.log(album_song.ARTISTS);
-                console.log(regexes.whitelist.artist, regexes.blacklist.artist, artist_id)
                 if (album_song.ARTISTS.some(
                     (artist) => (
                         artist.ART_ID === artist_id &&
