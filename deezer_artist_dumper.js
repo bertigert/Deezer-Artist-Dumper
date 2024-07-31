@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.1
+// @version      1.4.2
 // @description  Adds the feature to add all artists songs to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -279,7 +279,7 @@ function get_config() {
         min_length: 60,
         regexes: [
             {
-                str: String.raw`(\(|- )(((super )?slowed(( &| \+| *,) reverb)?)|(sped up)|(reverb)|(8d audio))\)? *$`, // https://regex101.com/r/aAmeyk/1
+                str: String.raw`(\(|- )(((super )?slowed(( *&| *\+| *,) *reverb)?)|(sped up)|(reverb)|(8d audio))( version)?\)? *$`, // https://regex101.com/r/yDUeHo/1
                 flags: "i",
                 type: 0, // 0 = blacklist, 1 = whitelist
                 for_artist: -1, // -1 = every artist, any other number is artist id
@@ -407,12 +407,15 @@ async function get_all_songs(auth_token, artist_id, regexes) {
             if (does_string_match(song_title, regexes.whitelist.song, true) &&
                 !does_string_match(song_title, regexes.blacklist.song, false)) {
                 // if the current artist contributed and if every artist is whitelisted but not blacklisted
+                console.log(album_song.ARTISTS);
+                console.log(regexes.whitelist.artist, regexes.blacklist.artist, artist_id)
                 if (album_song.ARTISTS.some(
                     (artist) => (
                         artist.ART_ID === artist_id &&
                         does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) &&
-                        !does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)))
-                   )
+                        !does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)
+                    )
+                ))
                 {
                     if (Number(album_song.DURATION) >= config.min_length) {
                         album_songs.push([album_song.SNG_ID, `${album_song.SNG_TITLE} ${album_song.VERSION}`.trim()]);
@@ -420,7 +423,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                         output(INFO, `${song_title} is too short`);
                     }
                 } else {
-                    output(INFO, `An artist in ${song_title} is blacklisted`);
+                    output(INFO, `An artist in ${song_title} is blacklisted or the artist didn't contribute in the song`);
                 }
             } else {
                 output(INFO, `Song ${song_title} is blacklisted`);
@@ -672,7 +675,7 @@ async function submit() {
 
     } else {
         output(INFO, "Adding songs to "+selected_playlist.textContent);
-        output(INFO, `Adding ${data.song_ids.length} songs (${text.substr(0, text.length-3)})`);
+        output(INFO, `Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
 
 
         const r = await add_songs_to_playlist(selected_playlist.getAttribute("data-id"), data.song_ids);
@@ -863,7 +866,7 @@ function create_regexes_dropdown() {
 
     const dropdown_btn = document.createElement("button");
     dropdown_btn.textContent = " Regexes";
-    dropdown_btn.title = "Use get_config in console to get every regex and other stuff";
+    dropdown_btn.title = "Use deezer_artist_dumper_config in console to get every regex and other stuff";
     dropdown_btn.className = "regex_dropdown_toggle_btn";
     dropdown_btn.onclick = () => {
         dropdown.classList.toggle("open");
@@ -997,7 +1000,7 @@ function create_options() {
 
 function create_search_bar(playlists, playlist_ul) {
     const input = document.createElement("input")
-    input.placeholder = "Search Playlist";
+    input.placeholder = "Search Playlist 🔎︎";
     input.className = "searchbar";
     input.oninput = (e) => {
         for (let playlist of playlists) {
@@ -1073,7 +1076,7 @@ function create_output_textarea() {
     const output_textarea = document.createElement("textarea");
     output_textarea.className = "my_textarea";
     output_textarea.placeholder = "Output (Click to Copy)";
-    output_textarea.title = "Outputs information about the progess. Click to Copy.";
+    output_textarea.title = "Outputs information about the process. Click to Copy.";
     output_textarea.readOnly = true;
     output_textarea.onmouseup = () => {
         if (window.getSelection().toString() === "") {
@@ -1202,7 +1205,7 @@ async function artist_main() {
             }
 
             config = get_config();
-            unsafeWindow.get_config = get_config;
+            unsafeWindow.deezer_artist_dumper_config = config;
             last_dump_song_ids = [];
 
             set_css();
