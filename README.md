@@ -3,8 +3,9 @@
 A tampermonkey userscript which adds the functionality to download all of the Artists EPs, Singles, Albums and Features.
 Aims to mimic the Deezer Design on desktop. Supports both dark and white mode, although intended for dark mode.
 I do not know if "all" are really all songs, with all I mean every song which is listed on the discography page of an artist. I believe the Top 100 Tracks cannot include more songs. If that is wrong, contact me and I will add that.
-[Github](https://github.com/bababoi-2/Deezer-Artist-Dumper/)
-[GreazyFork](https://greasyfork.org/en/scripts/497123)
+
+---
+![image (2)](https://github.com/user-attachments/assets/08383448-5365-4f9e-b682-8bde2ce288af)
 
 ## Features
 - Adds a button on the artist page
@@ -16,11 +17,13 @@ I do not know if "all" are really all songs, with all I mean every song which is
     - album name (note that every song is an album, so an album blacklist also blocks songs **if** the artist did not specify a different album name. If you know what you're doing, you can use this feature to improve the speed by alot, as we don't need to get the songs for the album (mostly useful for singles))
     - contributor name (meaning if a blacklisted artist has contributed, the song is blacklisted)
 - A dump merge script is included which can be used to merge multiple dumps into a single dump, simplifying the dump loading process for later uses (a update dumps script is also included which should update old version dumps to a the new version)
-![image (2)](https://github.com/user-attachments/assets/08383448-5365-4f9e-b682-8bde2ce288af)
+
+## Links
+- [Github](https://github.com/bababoi-2/Deezer-Artist-Dumper/)
+- [GreazyFork](https://greasyfork.org/en/scripts/497123)
 
 
-
-# TODO
+## TODO
 - setting to add the songs one by one which results in them being able to be sorted by release date or rank properly (would be way slower when enabled as there would be a synchronous (since we want to keep order) request for every song. You could probably reduce the amount of requests by grouping songs with in-order song ids together and only if there is a song with a out-of-order song id send another request)
 - create dump from playlist
   - automatically determine dominant artist/let user choose 
