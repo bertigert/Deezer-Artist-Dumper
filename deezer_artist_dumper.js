@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.3
+// @version      1.4.4
 // @description  Adds the feature to add all songs of an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -35,7 +35,7 @@ function set_css() {
 .main_div {
     position: absolute;
     left: 110%;
-    top: -500%;
+    top: -600%;
     width: 500px;
     overflow: auto;
     display: none;
@@ -409,7 +409,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
 
             // if we dont want duplicates but the artist released the song multiple times as different songs
             if (!config.toggles.duplicates && songs_isrc[album_song.ISRC]) {
-                artdump_log.info(`The artist released ${song_title} multiple times`);
+                artdump_log.info(`Song ${song_title} is re-released`);
                 continue;
             }
 
@@ -420,7 +420,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
             }
 
             if (album_song.ARTISTS.every( (artist) => artist.ART_ID !== artist_id) ) {
-                artdump_log.info(`The artist did not contribute in ${song_title}`);
+                artdump_log.info(`Song ${song_title} doesn't feature artist`);
                 continue;
             }
 
@@ -429,19 +429,20 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                 !does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) ||
                 does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)
             ))) {
-                artdump_log.info(`An artist in ${song_title} is blacklisted`);
+                artdump_log.info(`Song ${song_title} features a blacklisted artist`);
                 continue;
             }
 
             if (Number(album_song.DURATION) < config.min_length) {
-                artdump_log.info(`${song_title} is too short`);
+                artdump_log.info(`Song ${song_title} is too short`);
                 continue;
             }
 
             // finally add the song
             if (!config.toggles.duplicates) {
-                songs_isrc[album_song.ISRC] = true;
+                (songs_isrc[album_song.ISRC] ||= [song_title, []])[1].push(album_song.SNG_ID);
             }
+
             album_songs.push([album_song.SNG_ID, song_title]);
 
         }
@@ -469,11 +470,11 @@ async function get_all_songs(auth_token, artist_id, regexes) {
 
     for (let last_dump_song_id of last_dump_song_ids) {
         if (songs[last_dump_song_id] !== undefined) {
-            artdump_log.info(`${songs[last_dump_song_id]} was present in another dump`);
+            artdump_log.info(`Song ${songs[last_dump_song_id]} appeared in a previous dump`);
             delete songs[last_dump_song_id];
         }
     }
-    return songs;
+    return [songs, songs_isrc];
 
 }
 
@@ -641,7 +642,7 @@ async function submit() {
     const auth_token = await get_auth_token();
 
     artdump_log.info("Getting songs");
-    const songs = await get_all_songs(auth_token, data.artist_id, regexes);
+    const [songs, songs_isrc] = await get_all_songs(auth_token, data.artist_id, regexes);
 
     let text = "";
 
@@ -650,9 +651,15 @@ async function submit() {
         const songs_already_in_playlist = await get_songs_in_playlist(selected_playlist_id);
         if (songs_already_in_playlist.error.length === 0) {
             for (let song_already_in_playlist of songs_already_in_playlist.results.data) {
-                if (songs[song_already_in_playlist.SNG_ID] !== undefined) {
-                    artdump_log.info(`${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
+                if (songs[song_already_in_playlist.SNG_ID]) {
+                    artdump_log.info(`Song ${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
                     delete songs[song_already_in_playlist.SNG_ID];
+                    continue
+                }
+
+                if (songs_isrc[song_already_in_playlist.ISRC]) {
+                    artdump_log.info(`Song ${songs_isrc[song_already_in_playlist.ISRC][0]} is re-released (playlist)`)
+                    songs_isrc[song_already_in_playlist.ISRC][1].forEach(song_id => delete songs[song_id]);
                 }
             }
         }
