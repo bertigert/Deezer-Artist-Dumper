@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.2
-// @description  Adds the feature to add all artists songs to a playlist
+// @version      1.4.3
+// @description  Adds the feature to add all songs of an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
@@ -69,7 +69,7 @@ function set_css() {
 .options_div {
     padding: 5px;
     display: grid;
-    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
+    grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.16fr) minmax(0, 0.09fr);
     box-sizing: border-box;
     border: 1px solid var(--tempo-colors-divider-neutral-primary-default);
 }
@@ -77,7 +77,7 @@ function set_css() {
     padding: 5px;
     display: grid;
     box-sizing: border-box;
-    grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.7fr) minmax(0, 0.65fr) minmax(0, 0.7fr);
+    grid-template-columns: minmax(0, 0.12fr) minmax(0, 0.2fr) minmax(0, 0.18fr) minmax(0, 0.24fr) minmax(0, 0.26fr);
 }
 .options_div .song_type_options_div input {
     margin-left: 5px;
@@ -274,6 +274,7 @@ function get_config() {
             singles: true,
             album: true,
             featured: true,
+            duplicates: false
         },
         order: 0, // 0 = RELEASE_DATE, 1 = RANK
         min_length: 60,
@@ -367,7 +368,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                 !does_string_match(album.node.displayTitle, regexes.blacklist.album, false)) {
                 albums.push([album.node.id, album.node.displayTitle]);
             } else {
-                output(INFO, `Album ${album.node.displayTitle} is blacklisted`);
+                artdump_log.info(`Album ${album.node.displayTitle} is blacklisted`);
             }
         }
         // could prob do it better recursively
@@ -381,7 +382,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                     !does_string_match(album.node.displayTitle, regexes.blacklist.album, false)) {
                     albums.push([album.node.id, album.node.displayTitle]);
                 } else {
-                    output(INFO, `Album ${album.node.displayTitle} is blacklisted`);
+                    artdump_log.info(`Album ${album.node.displayTitle} is blacklisted`);
                 }
             }
         }
@@ -400,32 +401,49 @@ async function get_all_songs(auth_token, artist_id, regexes) {
             "credentials": "include"
         });
         const resp = await r.json();
+
         const album_songs = [];
+
         for (let album_song of resp.results.data) {
-            const song_title = `${album_song.SNG_TITLE} ${album_song.VERSION}`;
-            // if song is whitelisted but not blacklisted
-            if (does_string_match(song_title, regexes.whitelist.song, true) &&
-                !does_string_match(song_title, regexes.blacklist.song, false)) {
-                // if the current artist contributed and if every artist is whitelisted but not blacklisted
-                if (album_song.ARTISTS.some(
-                    (artist) => (
-                        artist.ART_ID === artist_id &&
-                        does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) &&
-                        !does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)
-                    )
-                ))
-                {
-                    if (Number(album_song.DURATION) >= config.min_length) {
-                        album_songs.push([album_song.SNG_ID, `${album_song.SNG_TITLE} ${album_song.VERSION}`.trim()]);
-                    } else {
-                        output(INFO, `${song_title} is too short`);
-                    }
-                } else {
-                    output(INFO, `An artist in ${song_title} is blacklisted or the artist didn't contribute in the song`);
-                }
-            } else {
-                output(INFO, `Song ${song_title} is blacklisted`);
+            const song_title = `${album_song.SNG_TITLE} ${album_song.VERSION}`.trim();
+
+            // if we dont want duplicates but the artist released the song multiple times as different songs
+            if (!config.toggles.duplicates && songs_isrc[album_song.ISRC]) {
+                artdump_log.info(`The artist released ${song_title} multiple times`);
+                continue;
             }
+
+            // if song is blacklisted or not whitelisted
+            if (!does_string_match(song_title, regexes.whitelist.song, true) || does_string_match(song_title, regexes.blacklist.song, false)) {
+                artdump_log.info(`Song ${song_title} is blacklisted`);
+                continue;
+            }
+
+            if (album_song.ARTISTS.every( (artist) => artist.ART_ID !== artist_id) ) {
+                artdump_log.info(`The artist did not contribute in ${song_title}`);
+                continue;
+            }
+
+            // if a contributor is blacklisted or not whitelisted
+            if (album_song.ARTISTS.some( (artist) => (
+                !does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) ||
+                does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)
+            ))) {
+                artdump_log.info(`An artist in ${song_title} is blacklisted`);
+                continue;
+            }
+
+            if (Number(album_song.DURATION) < config.min_length) {
+                artdump_log.info(`${song_title} is too short`);
+                continue;
+            }
+
+            // finally add the song
+            if (!config.toggles.duplicates) {
+                songs_isrc[album_song.ISRC] = true;
+            }
+            album_songs.push([album_song.SNG_ID, song_title]);
+
         }
 
         return album_songs;
@@ -433,24 +451,25 @@ async function get_all_songs(auth_token, artist_id, regexes) {
 
     // get all songs from albums asynchronous, 10 at a time to avoid ratelimits
     const albums = await get_all_albums();
+    const songs_isrc = {};
     const songs = {};
 
     for (let i = 0; i < albums.length; i += 10) {
         const chunk = albums.slice(i, i + 10);
-        let albumPromises = chunk.map(async album => {
-            output(INFO, "Getting songs for " + album[1]);
-            const albumSongs = await get_all_songs_from_album(album[0]);
-            for (let song of albumSongs) {
+        let album_promises = chunk.map(async album => {
+            artdump_log.info("Getting songs for " + album[1]);
+            const album_songs = await get_all_songs_from_album(album[0]);
+            for (let song of album_songs) {
                 songs[song[0]] = song[1];
             }
         });
 
-        await Promise.all(albumPromises);
+        await Promise.all(album_promises);
     }
 
     for (let last_dump_song_id of last_dump_song_ids) {
         if (songs[last_dump_song_id] !== undefined) {
-            output(INFO, `${songs[last_dump_song_id]} was present in another dump`);
+            artdump_log.info(`${songs[last_dump_song_id]} was present in another dump`);
             delete songs[last_dump_song_id];
         }
     }
@@ -554,9 +573,11 @@ function parse_regexes() {
             continue;
         }
 
+        artdump_log.clear();
+
         const regex_exp = validate_regex(regex.str, regex.flags);
         if (!regex_exp) {
-            output(ERROR, `Regex "${regex.str}" with flags "${regex.flags}" is not valid, exiting`, true);
+            artdump_log.error(`Regex "${regex.str}" with flags "${regex.flags}" is not valid, exiting`);
             return null;
         }
 
@@ -566,7 +587,7 @@ function parse_regexes() {
                 regexes[["blacklist", "whitelist"][regex.type]][applies_to[0]].push(regex_exp);
             }
         }
-        output(INFO, "Regexes valid", true);
+        artdump_log.success("Regexes valid");
     }
 
     return regexes;
@@ -619,18 +640,18 @@ async function submit() {
 
     const auth_token = await get_auth_token();
 
-    output(INFO, "Getting songs");
+    artdump_log.info("Getting songs");
     const songs = await get_all_songs(auth_token, data.artist_id, regexes);
 
     let text = "";
 
-    const selected_playlist_id = selected_playlist.getAttribute("data-id")
+    const selected_playlist_id = selected_playlist.getAttribute("data-id");
     if (selected_playlist_id !== "-1") {
         const songs_already_in_playlist = await get_songs_in_playlist(selected_playlist_id);
         if (songs_already_in_playlist.error.length === 0) {
             for (let song_already_in_playlist of songs_already_in_playlist.results.data) {
                 if (songs[song_already_in_playlist.SNG_ID] !== undefined) {
-                    output(INFO, `${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
+                    artdump_log.info(`${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
                     delete songs[song_already_in_playlist.SNG_ID];
                 }
             }
@@ -643,54 +664,54 @@ async function submit() {
     }
 
     if (data.song_ids.length === 0) {
-        output(INFO, "There are no songs to add, exiting");
+        artdump_log.info("There are no songs to add, exiting");
         return;
     }
     data.song_ids.reverse(); // the order we receive is fifo but we need filo (basically). doesnt matter rly tho as sorting playlist afterwards doesnt really work as we add all songs at the same time
 
     const artist_name = get_current_artist_name();
     if (selected_playlist.getAttribute("data-id") === "-1") {
-        output(INFO, "Creating new playlist for "+artist_name);
-        output(INFO, `Adding ${data.song_ids.length} songs (${text.substr(0, text.length-3)})`);
+        artdump_log.info("Creating new playlist for "+artist_name);
+        artdump_log.info(`Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
 
         let r = await create_playlist(data.song_ids, artist_name);
         if (r.error.length !== 0) {
-            output(ERROR, "Failed to create playlist, see console");
+            artdump_log.error("Failed to create playlist (see console)");
             console.error("Failed to create playlist", r.error);
             return;
         }
-        output(SUCCESS, "Created playlist with songs in it");
+        artdump_log.success("Created playlist with songs in it");
 
         r = await update_playlist_picture_to_current_artist(r.results)
         if (r.error.length !== 0) {
-            output(ERROR, "Failed to add picture to playlist, see console");
+            artdump_log.error("Failed to add picture to playlist (see console)");
             console.error("Failed to add picture to playlist", r.error);
             return;
         }
 
-        output(SUCCESS, "Added picture to playlist");
-        output(SUCCESS, "Finished");
+        artdump_log.success("Added picture to playlist");
+        artdump_log.success("Finished");
 
     } else {
-        output(INFO, "Adding songs to "+selected_playlist.textContent);
-        output(INFO, `Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
+        artdump_log.info("Adding songs to "+selected_playlist.textContent);
+        artdump_log.info(`Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
 
 
         const r = await add_songs_to_playlist(selected_playlist.getAttribute("data-id"), data.song_ids);
         if (r.error.length !== 0) {
             console.error("Failed to add songs to playlist", r.error);
             if (r.error.ERROR_DATA_EXISTS !== undefined) {
-                output(ERROR, "Failed to add songs as at least 1 song is already in playlist");
+                artdump_log.error("Failed to add songs as at least 1 song is already in playlist");
             } else {
-                output(ERROR, "Failed to add songs to playlist, see console");
+                artdump_log.error("Failed to add songs to playlist (see console)");
             }
             return;
         }
 
-        output(SUCCESS, "Added songs to playlist "+selected_playlist.textContent);
-        output(SUCCESS, "Finished");
+        artdump_log.success("Added songs to playlist "+selected_playlist.textContent);
+        artdump_log.success("Finished");
     }
-    output(INFO, `Process took ${(Date.now()-start_time)/1000} seconds.`);
+    artdump_log.info(`Process took ${(Date.now()-start_time)/1000} seconds.`);
     download_btn.click();
 
 }
@@ -698,14 +719,37 @@ async function submit() {
 
 // more or less only visual stuff
 
+class Artdump_log {
 
-function output(type, text, clean) {
-    const time = new Date();
-    if (clean) {
-        output_textarea.value = "";
+
+    constructor(log_textarea) {
+        this.INFO = "?";
+        this.ERROR = "!";
+        this.SUCCESS = "*";
+        this.log_textarea = log_textarea;
     }
-    output_textarea.value += `[${time.toLocaleTimeString()}] [${type}] ${text}\n`
-    output_textarea.scrollTop = output_textarea.scrollHeight;
+
+    _log(type_prefix, ...args) {
+        const time = new Date();
+        this.log_textarea.value += `[${time.toLocaleTimeString()}] [${type_prefix}] ${args.join(" ")}\n`
+        this.log_textarea.scrollTop = this.log_textarea.scrollHeight;
+    }
+
+    clear() {
+        this.log_textarea.value = "";
+    }
+
+    info(...args) {
+        this._log(this.INFO, ...args);
+    }
+
+    error(...args) {
+        this._log(this.ERROR, ...args);
+    }
+
+    success(...args) {
+        this._log(this.SUCCESS, ...args);
+    }
 }
 
 
@@ -803,7 +847,7 @@ function create_regexes_dropdown() {
         all_artists_opt.textContent = "All⠀ Artists";
         const this_artist_opt = document.createElement("option");
         this_artist_opt.textContent = "This Artist";
-        
+
         for_artist_dropdown.onchange = () => {
             regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? -1 : curr_artist_id;
             set_config();
@@ -872,7 +916,7 @@ function create_regexes_dropdown() {
 
     const create_new_btn = document.createElement("button");
     create_new_btn.className = "create_new_regex_btn";
-    create_new_btn.textContent = "➕";
+    create_new_btn.textContent = "➕︎";
     create_new_btn.onclick = () => {
         dropdown.classList.add("open");
         const new_regex = {
@@ -943,7 +987,7 @@ function create_options() {
 
     const song_type_options = document.createElement("div");
     song_type_options.className = "song_type_options_div";
-    const types = ["EP", "Singles", "Album", "Featured"]
+    const types = ["EP", "Singles", "Album", "Featured", "Duplicates"]
     let input, lbl;
     for (let type of types) {
         input = document.createElement("input");
@@ -972,7 +1016,7 @@ function create_options() {
 
     const order_dropdown = document.createElement("select");
     order_dropdown.className = "my_dropdown";
-    order_dropdown.title = "Order of songs. Does not really affect anything as the songs get added all at once so deezer sorts them by song_id internally which is MOSTLY equal to release date, but can have exceptions.";
+    order_dropdown.title = "Order of songs. Does not really affect anything at the moment, as the songs get added all at once so deezer sorts them by their song id internally which is MOSTLY equal to release date, but can have exceptions.";
     order_dropdown.append(...opts)
     order_dropdown.selectedIndex = config.order;
     order_dropdown.onchange = () => {
@@ -1070,19 +1114,19 @@ function create_submit_btn() {
 }
 
 
-function create_output_textarea() {
-    const output_textarea = document.createElement("textarea");
-    output_textarea.className = "my_textarea";
-    output_textarea.placeholder = "Output (Click to Copy)";
-    output_textarea.title = "Outputs information about the process. Click to Copy.";
-    output_textarea.readOnly = true;
-    output_textarea.onmouseup = () => {
+function create_artdump_log_textarea() {
+    const artdump_log_textarea = document.createElement("textarea");
+    artdump_log_textarea.className = "my_textarea";
+    artdump_log_textarea.placeholder = "artdump_log (Click to Copy)";
+    artdump_log_textarea.title = "Logs information about the process. Click to Copy.";
+    artdump_log_textarea.readOnly = true;
+    artdump_log_textarea.onmouseup = () => {
         if (window.getSelection().toString() === "") {
-            navigator.clipboard.writeText(output_textarea.value);
+            navigator.clipboard.writeText(artdump_log_textarea.value);
         }
     }
 
-    return output_textarea;
+    return artdump_log_textarea;
 }
 
 
@@ -1119,7 +1163,7 @@ function create_load_btn(data, time) {
                 try {
                     last_dump = JSON.parse(re.target.result);
                 } catch (e) {
-                    output(ERROR, "Error parsing dump "+file.name);
+                    artdump_log.error("Error parsing dump "+file.name);
                     console.error("Error parsing dump "+file.name, e);
                     return;
                 }
@@ -1158,13 +1202,9 @@ let config;
 let user_data;
 let last_dump_song_ids;
 let selected_playlist;
-let output_textarea;
+let artdump_log;
 let download_btn;
 let main_div;
-
-const ERROR = "!";//"ERROR";
-const INFO = "?";//"INFO";
-const SUCCESS = "*";//"SUCCESS";
 
 let last_url = location.href;
 window.navigation.addEventListener('navigate', (e) => {
@@ -1224,10 +1264,11 @@ async function artist_main() {
 
             const submit_btn = create_submit_btn();
             const load_btn = create_load_btn();
-            output_textarea = create_output_textarea();
+            const artdump_log_textarea = create_artdump_log_textarea();
+            artdump_log = new Artdump_log(artdump_log_textarea);
             const main_btn = create_main_btn(main_div);
 
-            main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, output_textarea, load_btn);
+            main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, artdump_log_textarea, load_btn);
             main_ul.append(main_btn, main_div);
         }
     }, 200)
