@@ -16,7 +16,7 @@ I do not know if "all" are really all songs, with all I mean every song which is
     - album name (note that every song is an album, so an album blacklist also blocks songs **if** the artist did not specify a different album name. If you know what you're doing, you can use this feature to improve the speed by alot, as we don't need to get the songs for the album (mostly useful for singles))
     - contributor name (meaning if a blacklisted artist has contributed, the song is blacklisted)
 - A dump merge script is included which can be used to merge multiple dumps into a single dump, simplifying the dump loading process for later uses (a update dumps script is also included which should update old version dumps to a the new version)
-![image](https://github.com/user-attachments/assets/7b0e6559-3fc5-42d8-b12b-116cb547b9fb)
+![image](https://github.com/user-attachments/assets/e8405b79-687a-41ce-8476-f22e8e03d41f)
 
 # TODO
 - setting to add the songs one by one which results in them being able to be sorted by release date or rank properly (would be way slower when enabled as there would be a synchronous (since we want to keep order) request for every song. You could probably reduce the amount of requests by grouping songs with in-order song ids together and only if there is a song with a out-of-order song id send another request)
