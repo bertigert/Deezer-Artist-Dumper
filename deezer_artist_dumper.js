@@ -2,7 +2,7 @@
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
 // @version      1.4.3
-// @description  Adds the feature to add all artists songs to a playlist
+// @description  Adds the feature to add all songs of an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
@@ -35,7 +35,7 @@ function set_css() {
 .main_div {
     position: absolute;
     left: 110%;
-    transform: translateY(-60%);
+    top: -500%;
     width: 500px;
     overflow: auto;
     display: none;
@@ -43,7 +43,7 @@ function set_css() {
     border-radius: 8px;
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     cursor: pointer;
-    z-index: 300;
+    z-index: 100;
 }
 .main_div * {
     font-size: 14px;
