@@ -2,7 +2,7 @@
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
 // @version      1.4.4
-// @description  Adds the feature to add all songs of an artist to a playlist
+// @description  Adds the feature to add all songs by an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
@@ -186,7 +186,7 @@ function set_css() {
 }
 .regex_dropdown_item {
     display: grid;
-    grid-template-columns: minmax(0, 3.5fr) minmax(0, 1.1fr) minmax(0, 1.8fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.5fr);
+    grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr); /* This adds up 0.965, the 0.015 are used for the scaling of the trashcan on hover */
     box-sizing: border-box;
     border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     padding: 4px 2px;
@@ -619,7 +619,7 @@ function download_dump(data, time) {
 }
 
 
-async function submit() {
+async function submit(main_div) {
     const start_time = Date.now();
 
     const regexes = parse_regexes();
@@ -837,9 +837,9 @@ function create_regexes_dropdown() {
         const type_dropdown = document.createElement("select");
         type_dropdown.className = "my_dropdown";
         const blacklist_opt = document.createElement("option");
-        blacklist_opt.textContent = "Blacklist";
+        blacklist_opt.textContent = "Block";
         const whitelist_opt = document.createElement("option");
-        whitelist_opt.textContent = "Whitelist";
+        whitelist_opt.textContent = "Allow";
         type_dropdown.onchange = () => {
             regex_ref.type = type_dropdown.selectedIndex;
             set_config();
@@ -851,7 +851,7 @@ function create_regexes_dropdown() {
         for_artist_dropdown.style.marginLeft = "3px";
         for_artist_dropdown.className = "my_dropdown";
         const all_artists_opt = document.createElement("option");
-        all_artists_opt.textContent = "All⠀ Artists";
+        all_artists_opt.textContent = "Any Artist"; // "Any" and "This" are carefully chosen to be similar in length (not just amount of character but actualy length)
         const this_artist_opt = document.createElement("option");
         this_artist_opt.textContent = "This Artist";
 
@@ -1108,14 +1108,14 @@ function create_playlists_btns(playlists, new_playlist_btn) {
 }
 
 
-function create_submit_btn() {
+function create_submit_btn(main_div) {
     const submit_btn = document.createElement("button");
     submit_btn.textContent = "Submit";
     submit_btn.className = "action_btn";
     submit_btn.style.top = "10px";
     submit_btn.style.marginBottom = "10px";
     submit_btn.title = "Starts the whole process. The settings (regex, checkboxes) will be saved locally for the next use."
-    submit_btn.onclick = submit;
+    submit_btn.onclick = () => submit(main_div);
 
     return submit_btn;
 }
@@ -1211,7 +1211,6 @@ let last_dump_song_ids;
 let selected_playlist;
 let artdump_log;
 let download_btn;
-let main_div;
 
 let last_url = location.href;
 window.navigation.addEventListener('navigate', (e) => {
@@ -1256,7 +1255,7 @@ async function artist_main() {
             set_css();
             main_ul.style.position = "relative";
 
-            main_div = create_main_div();
+            const main_div = create_main_div();
             const regex_dropdown = create_regexes_dropdown();
             const options_div = create_options();
 
@@ -1269,7 +1268,7 @@ async function artist_main() {
             const playlist_ul = create_playlists_btns(playlists, new_playlist_btn);
             const search_bar = create_search_bar(playlists, playlist_ul);
 
-            const submit_btn = create_submit_btn();
+            const submit_btn = create_submit_btn(main_div);
             const load_btn = create_load_btn();
             const artdump_log_textarea = create_artdump_log_textarea();
             artdump_log = new Artdump_log(artdump_log_textarea);
