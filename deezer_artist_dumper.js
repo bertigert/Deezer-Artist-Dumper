@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.4
+// @version      1.4.5
 // @description  Adds the feature to add all songs by an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -9,21 +9,28 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        unsafeWindow
+// @grant        GM_addStyle
 // ==/UserScript==
 
 function set_css() {
-    const css = document.createElement("style");
-    css.type = "text/css";
-    css.textContent = `
+    const css = `
 .main_btn {
+    display: inline-flex;
+    align-items: center;
     min-width: var(--tempo-sizes-size-xl);
+    min-height: var(--tempo-sizes-size-xl);
+    justify-content: center;
     border-radius: 50%;
+    fill: currentcolor;
 }
-.main_btn:hover, .create_new_regex_btn:hover, .my_textarea:hover {
+.main_btn:hover, .regex_btns:hover, .my_textarea:hover {
   background-color: var(--tempo-colors-background-neutral-tertiary-hovered);
 }
-.main_btn.active {
-    color: var(--tempo-colors-text-accent-primary-default);
+.main_btn svg path {
+    fill: currentcolor;
+}
+.main_btn.active svg path {
+    fill: var(--tempo-colors-text-accent-primary-default);
 }
 .main_btn_text {
     display: inline-block;
@@ -109,16 +116,15 @@ function set_css() {
 
 .new_playlist_btn {
     width: 100%;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: 8px 11px;
 }
 .new_playlist_btn span {
     color: var(--tempo-colors-text-accent-primary-default);
+    padding-right: 5px;
 }
-.new_playlist_btn .plus_sign {
-    padding: 4.4px 8px 0 5px;
-    scale: 3;
+.new_playlist_btn span svg path {
+    fill: var(--tempo-colors-text-accent-primary-default);
 }
 
 .playlist_ul {
@@ -157,7 +163,7 @@ function set_css() {
     border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
 }
 .regex_dropdown_toggle_btn {
-    width: 93%;
+    width: 80%;
     font-size: 20px;
     font-weight: bold;
     text-align: left;
@@ -173,9 +179,10 @@ function set_css() {
     max-height: 150px;
 }
 
-.create_new_regex_btn {
-    border-radius: 40%;
-    font-size: 20px;
+.regex_btns {
+    border-radius: 50%;
+    font-size: 25px;
+    min-width: 30px;
 }
 
 .regex_dropdown_menu {
@@ -186,7 +193,7 @@ function set_css() {
 }
 .regex_dropdown_item {
     display: grid;
-    grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr); /* This adds up 0.965, the 0.015 are used for the scaling of the trashcan on hover */
+    grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr); /* This adds up 0.985, the 0.015 are used for the scaling of the trashcan on hover */
     box-sizing: border-box;
     border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     padding: 4px 2px;
@@ -222,7 +229,7 @@ function set_css() {
     margin-left: 3px;
 }
 `
-    document.querySelector("head").appendChild(css);
+    GM_addStyle(css);
 }
 
 // data stuff
@@ -232,6 +239,9 @@ async function get_user_data() {
         "body": "{}",
         "method": "POST",
     });
+    if (!r.ok) {
+        return null;
+    }
     const resp = await r.json();
 
     return resp;
@@ -267,8 +277,7 @@ function get_playlists() {
 }
 
 function get_config() {
-    const config = GM_getValue("artist_dumper_config");
-    return config ? JSON.parse(config): { // default settings
+    const config = GM_getValue("artist_dumper_config", { // default settings
         toggles: {
             ep: true,
             singles: true,
@@ -280,10 +289,10 @@ function get_config() {
         min_length: 60,
         regexes: [
             {
-                str: String.raw`(\(|- )(((super )?slowed(( *&| *\+| *,) *reverb)?)|(sped up)|(reverb)|(8d audio))( version)?\)? *$`, // https://regex101.com/r/yDUeHo/1
+                str: String.raw`(\(|- )(((super )?slowed(( *&| *\+| *,) *reverb)?)|(sped up)|(reverb)|(8d audio)|(speed))( version)?\)? *$`, // https://regex101.com/r/cU3ajr/1
                 flags: "i",
                 type: 0, // 0 = blacklist, 1 = whitelist
-                for_artist: -1, // -1 = every artist, any other number is artist id
+                for_artist: "-1", // -1 = every artist, any other number is artist id
                 applies_to: {
                     song: true,
                     artist: false,
@@ -291,11 +300,12 @@ function get_config() {
                 }
             }
         ]
-    }
+    });
+    return typeof(config) === "string" ? JSON.parse(config) : config; // backwards compatibility for when the config was stored as a string
 }
 
 function set_config() {
-    GM_setValue("artist_dumper_config", JSON.stringify(config));
+    GM_setValue("artist_dumper_config", config);
 }
 
 
@@ -471,7 +481,13 @@ async function get_all_songs(auth_token, artist_id, regexes) {
     for (let last_dump_song_id of last_dump_song_ids) {
         if (songs[last_dump_song_id] !== undefined) {
             artdump_log.info(`Song ${songs[last_dump_song_id]} appeared in a previous dump`);
-            delete songs[last_dump_song_id];
+            // if the song is found here, we won't delete it, we will mark is as deleted and handle it later in the other checks
+            // thats because if we delete this, the check if the song is in the playlist will be skipped = fails altough the song may be in the playlist
+            // if that check fails, we check for the ISRC which isnt designed to handle songs which may be in the playlist
+            // that check will always succeed, since the isrc list contains every song
+            // this will result in every song which was removed due to a dump getting flagged by the isrc check
+            // this results in the isrc logging every song which was in a dump to be re-released
+            songs[last_dump_song_id] = null;
         }
     }
     return [songs, songs_isrc];
@@ -570,7 +586,7 @@ function parse_regexes() {
     }
     const curr_artist_id = get_current_artist_id();
     for (let regex of config.regexes) {
-        if (regex.str.trim() === "" || (regex.for_artist !== -1 && regex.for_artist !== curr_artist_id )) {
+        if (regex.str.trim() === "" || (regex.for_artist !== "-1" && regex.for_artist !== curr_artist_id )) {
             continue;
         }
 
@@ -594,28 +610,19 @@ function parse_regexes() {
     return regexes;
 }
 
-function download_dump(data, time) {
-    const formatted_time = time.toLocaleString('sv-SE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    }).replaceAll("-", "").replaceAll(':', '').replace(" ", "_");
-
+function download_file(data, name) {
     const link = document.createElement('a');
-    link.download = `artistdump_${get_current_artist_name().replaceAll(" ", "-")}_${formatted_time}.json`;
+    link.download = name;
 
     if (typeof(data) === "object") {
         data = JSON.stringify(data, null, 4)
     }
     const blob = new Blob([data], { type: 'application/json' });
-
     link.href = URL.createObjectURL(blob);
+
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setTimeout(() => link.click());
+    link.remove();
 }
 
 
@@ -651,23 +658,33 @@ async function submit(main_div) {
         const songs_already_in_playlist = await get_songs_in_playlist(selected_playlist_id);
         if (songs_already_in_playlist.error.length === 0) {
             for (let song_already_in_playlist of songs_already_in_playlist.results.data) {
-                if (songs[song_already_in_playlist.SNG_ID]) {
-                    artdump_log.info(`Song ${songs[song_already_in_playlist.SNG_ID]} is already in the playlist`);
+                if (songs[song_already_in_playlist.SNG_ID] === null) { // marked as found in dump, see last_dump checks in get_all_songs_from_album
                     delete songs[song_already_in_playlist.SNG_ID];
-                    continue
+                    continue;
+                }
+
+                if (songs[song_already_in_playlist.SNG_ID]) {
+                    artdump_log.info(`Song ${songs[song_already_in_playlist.SNG_ID]} is already in playlist`);
+                    delete songs[song_already_in_playlist.SNG_ID];
+                    continue;
                 }
 
                 if (songs_isrc[song_already_in_playlist.ISRC]) {
-                    artdump_log.info(`Song ${songs_isrc[song_already_in_playlist.ISRC][0]} is re-released (playlist)`)
+                    artdump_log.info(`Song ${songs_isrc[song_already_in_playlist.ISRC][0]} is re-released (found in playlist)`);
                     songs_isrc[song_already_in_playlist.ISRC][1].forEach(song_id => delete songs[song_id]);
                 }
             }
         }
     }
 
+
+    // most of the filtering done, now onto adding the songs_isrc
+
     for (let song of Object.entries(songs)) {
-        data.song_ids.push(song[0]);
-        text+=song[1]+", ";
+        if (song[1] !== null) { // the last songs which were present in a dump, but not in a playlist just don't get added to the data used from here
+            data.song_ids.push(song[0]);
+            text+=song[1]+", ";
+        }
     }
 
     if (data.song_ids.length === 0) {
@@ -727,7 +744,7 @@ async function submit(main_div) {
 // more or less only visual stuff
 
 class Artdump_log {
-
+    static CONSOLE = "[Deezer Artist Dumper]";
 
     constructor(log_textarea) {
         this.INFO = "?";
@@ -757,6 +774,10 @@ class Artdump_log {
     success(...args) {
         this._log(this.SUCCESS, ...args);
     }
+
+    static console(...args) {
+        console.log(this.CONSOLE, ...args);
+    }
 }
 
 
@@ -771,13 +792,21 @@ function change_selected_playlist(new_playlist) {
 
 
 function create_main_btn(main_div) {
-    const main_btn = document.createElement("button");
-    main_btn.className = "main_btn";
+    const li = document.createElement("li");
+    const div = document.createElement("div");
 
-    const text_span = document.createElement("span");
-    text_span.className = "main_btn_text";
-    text_span.textContent = "⁺";
-    main_btn.appendChild(text_span);
+    const main_btn = document.createElement("button");
+
+    main_btn.className = "main_btn";
+    main_btn.innerHTML = `<svg viewBox="0 0 24 24" width="27px" height="27px">
+        <path
+            fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
+        </path>
+    </svg>`
+
+    div.appendChild(main_btn);
+    li.appendChild(div)
+
 
     let show = false;
     main_btn.onclick = () => {
@@ -785,7 +814,7 @@ function create_main_btn(main_div) {
         main_div.style.display = show ? "block" : "none";
         main_btn.className = show ? "main_btn active": "main_btn";
     }
-    return main_btn;
+    return li;
 }
 
 
@@ -856,11 +885,11 @@ function create_regexes_dropdown() {
         this_artist_opt.textContent = "This Artist";
 
         for_artist_dropdown.onchange = () => {
-            regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? -1 : curr_artist_id;
+            regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? "-1" : curr_artist_id;
             set_config();
         }
         for_artist_dropdown.append(all_artists_opt, this_artist_opt);
-        for_artist_dropdown.selectedIndex = regex_ref.for_artist === -1 ? 0 : 1;
+        for_artist_dropdown.selectedIndex = regex_ref.for_artist === "-1" ? 0 : 1;
 
         const applies_to_song_checkbox = document.createElement("input");
         applies_to_song_checkbox.type = "checkbox";
@@ -922,8 +951,9 @@ function create_regexes_dropdown() {
     }
 
     const create_new_btn = document.createElement("button");
-    create_new_btn.className = "create_new_regex_btn";
+    create_new_btn.className = "regex_btns";
     create_new_btn.textContent = "➕︎";
+    create_new_btn.title = "Create new regex"
     create_new_btn.onclick = () => {
         dropdown.classList.add("open");
         const new_regex = {
@@ -943,44 +973,100 @@ function create_regexes_dropdown() {
         set_config();
     }
 
-    dropdown_btn_and_create_new_btn_group.append(dropdown_btn, create_new_btn);
+    const file_input = document.createElement("input");
+    file_input.type = "file";
+    file_input.multiple = true;
+    file_input.style.display = "none";
+    file_input.onchange = (e) => {
+        let all_regexes = [];
+        const files = e.target.files;
+
+        const readers = [];
+        for (let file of files) {
+            const reader = new FileReader();
+            readers.push(reader);
+            reader.readAsText(file, "UTF-8");
+            reader.onerror = e => {
+                console.error("File reading error:", e);
+            };
+            reader.onload = re => {
+                let cfg_regexes;
+                try {
+                    cfg_regexes = JSON.parse(re.target.result);
+                } catch (e) {
+                    artdump_log.error("Error parsing dump "+file.name);
+                    console.error("Error parsing dump "+file.name, e);
+                    return;
+                }
+                all_regexes.push(...cfg_regexes);
+            }
+        }
+
+        const wait_for_readers = setInterval(() => { // race condition but ig the file loading should always be quicker than the user pressing submit
+            if (readers.every(v => v.result !== null)) {
+                clearInterval(wait_for_readers);
+                config.regexes = [ ...new Set( [ ...config.regexes, ...all_regexes ].map(re => JSON.stringify(re)) ) ].map(re => JSON.parse(re)); // deduplicate
+                set_config();
+
+                // rebuild dropdown items
+                while (dropdown_menu.childElementCount > 1) dropdown_menu.lastElementChild.remove();
+                dropdown_menu.append( ...(config.regexes.filter( (regex) => (regex.for_artist === "-1" || regex.for_artist === curr_artist_id) ).map( (regex) => create_item(regex) ) ) );
+            }
+        }, 10)
+    }
+
+    const import_btn = document.createElement("button");
+    import_btn.className = "regex_btns";
+    import_btn.textContent = "⤓";
+    import_btn.title = "Import regexes without removing existing ones";
+    import_btn.onclick = () => {
+        file_input.value = null;
+        file_input.click();
+    }
+
+
+    const export_btn = document.createElement("button");
+    export_btn.className = "regex_btns";
+    export_btn.title = "Export regexes";
+    export_btn.textContent = "⤒";
+    export_btn.onclick = () => {
+        const formatted_time = (new Date()).toLocaleString('sv-SE', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        }).replaceAll("-", "").replaceAll(':', '').replace(" ", "_");
+
+        download_file(config.regexes, `artistdump_regexes_${formatted_time}.json`);
+    };
+
+    dropdown_btn_and_create_new_btn_group.append(dropdown_btn, export_btn, import_btn, create_new_btn);
 
     // create headers
     const header_item = document.createElement("div");
     header_item.className = "regex_dropdown_item";
 
-    const regex_inpt_header = document.createElement("span");
-    regex_inpt_header.textContent = "Regex";
-    regex_inpt_header.title = "The regex used to filter";
+    [
+        ["Regex", "The regex used to filter"],
+        ["Flags", "The regex flags"],
+        ["Type", "Wether to use this regex to blacklist or whitelist"],
+        ["For", "Apply this regex to the current artist or every artist"],
+        ["Song", "Apply this regex to song names"],
+        ["Artist", "Apply this regex to artist/contributer names"],
+        ["Album", "Apply this regex to album names"]
+    ].forEach( header => {
+        const header_span = document.createElement("span");
+        header_span.textContent = header[0];
+        header_span.title = header[1];
+        header_item.appendChild(header_span);
+    })
 
-    const regex_flags_inpt_header = document.createElement("span");
-    regex_flags_inpt_header.textContent = "Flags";
-    regex_flags_inpt_header.title = "The regex flags";
-
-    const type_header = document.createElement("span");
-    type_header.textContent = "Type";
-    type_header.title = "Wether to use this regex to blacklist or whitelist";
-
-    const for_artist_header = document.createElement("span");
-    for_artist_header.textContent = "For";
-    for_artist_header.title = "Apply this regex to the current artist or every artist";
-
-    const song_header = document.createElement("span");
-    song_header.textContent = "Song";
-    song_header.title = "Apply this regex to song names";
-
-    const artist_header = document.createElement("span");
-    artist_header.textContent = "Artist";
-    artist_header.title = "Apply this regex to artist/contributer names";
-
-    const album_header = document.createElement("span");
-    album_header.textContent = "Album";
-    album_header.title = "Apply this regex to album names";
-    header_item.append(regex_inpt_header, regex_flags_inpt_header, type_header, for_artist_header, song_header, artist_header, album_header);
     dropdown_menu.appendChild(header_item);
 
     const curr_artist_id = get_current_artist_id();
-    dropdown_menu.append( ...(config.regexes.filter( (regex) => (regex.for_artist === -1 || regex.for_artist === curr_artist_id) ).map( (regex) => create_item(regex) ) ) );
+    dropdown_menu.append( ...(config.regexes.filter( (regex) => (regex.for_artist === "-1" || regex.for_artist === curr_artist_id) ).map( (regex) => create_item(regex) ) ) );
 
     dropdown.append(dropdown_btn_and_create_new_btn_group, dropdown_menu)
 
@@ -1068,8 +1154,11 @@ function create_new_playlist_btn() {
     new_playlist_btn.setAttribute("data-id", "-1");
 
     const plus_sign_span = document.createElement("span");
-    plus_sign_span.textContent = "⁺";
-    plus_sign_span.className = "plus_sign";
+    plus_sign_span.innerHTML = `<svg viewBox="0 0 24 24" width="24px" height="24px">
+        <path
+            fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
+        </path>
+    </svg>`;
     const text_span = document.createElement("span");
     text_span.textContent = "New Playlist";
     new_playlist_btn.append(plus_sign_span, text_span);
@@ -1148,8 +1237,9 @@ function create_load_btn(data, time) {
     load_btn.className = "action_btn";
     load_btn.title = "Load data from an earlier dump."
     load_btn.onclick = () => {
+        file_input.value = null;
         file_input.click();
-    };
+    }
 
     file_input.onchange = (e) => {
         last_dump_song_ids = [];
@@ -1175,7 +1265,8 @@ function create_load_btn(data, time) {
                     return;
                 }
 
-                last_dump_song_ids = [...last_dump_song_ids, ...last_dump.song_ids];
+                last_dump_song_ids.push(...last_dump.song_ids);
+                // last_dump_song_ids = [...last_dump_song_ids, ...last_dump.song_ids];
                 const file_count = Number(load_btn.textContent.split(" ", 1)[0] ) + 1;
                 load_btn.textContent = file_count.toString() + " Dump" + (file_count > 1 ? "s": "");
                 load_btn.title += file.name+"\n";
@@ -1199,7 +1290,18 @@ function create_download_btn(data, time) {
     download_btn.className = "action_btn";
     download_btn.title = "Download data for this dump.";
     download_btn.style.marginTop = "1px";
-    download_btn.onclick = () => download_dump(data, time);
+    download_btn.onclick = () => {
+        const formatted_time = time.toLocaleString('sv-SE', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        }).replaceAll("-", "").replaceAll(':', '').replace(" ", "_");
+
+        download_file(data, `artistdump_${get_current_artist_name().replaceAll(" ", "-")}_${formatted_time}.json`);
+    }
 
     return download_btn;
 }
@@ -1211,71 +1313,104 @@ let last_dump_song_ids;
 let selected_playlist;
 let artdump_log;
 let download_btn;
+let last_path = location.pathname;
 
-let last_url = location.href;
-window.navigation.addEventListener('navigate', (e) => {
-    const target_url = e.destination.url;
-    console.log("change", last_url, target_url);
+// url change stuff
 
-    const last_id = last_url.split("/artist/")
-    const target_id = target_url.split("/artist/");
+function is_new_artist(target_path) {
+    Artdump_log.console(`Navigated from ${last_path} to ${target_path}`);
+
+    const last_id = last_path.split("/artist/")
+    const target_id = target_path.split("/artist/");
+
+    let is_new_artist = false;
     if (target_id.length > 1) { // current page is an artist
         if (last_id.length > 1) { // the last page was also an artist
             if (target_id[1].split("/", 1)[0] !== last_id[1].split("/", 1)[0]) { // the current and last artist arent the same
-                artist_main();
+                is_new_artist = true;
             }
         } else {
-            artist_main();
+            is_new_artist = true;
         }
 
     }
+    last_path = target_path;
+    return is_new_artist;
+}
 
-    last_url = target_url;
+window.history.pushState = new Proxy(window.history.pushState, {
+    apply: (target, thisArg, argArray) => {
+        if (is_new_artist(argArray[2])) {
+            artist_main();
+        }
+        return target.apply(thisArg, argArray);
+  },
 });
+window.addEventListener("popstate", (e) => {
+    if (is_new_artist(location.pathname)) {
+        artist_main();
+    }
+});
+
 if (location.pathname.includes("/artist/")) {
     artist_main();
 }
 
 async function artist_main() {
-    user_data = await get_user_data();
-    const wait = setInterval(() => {
-        console.log("waiting");
-        let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
-        if (main_ul !== null) {
-            clearInterval(wait);
-            console.log("found");
-            if (document.querySelector(".main_btn") !== null) {
-                return;
+    if (!user_data) {
+      user_data = await get_user_data();
+    }
+    if (!user_data) {
+        Artdump_log.console("Not logged in");
+    }
+
+    const observer = new MutationObserver(mutations => {
+        for (let mutation of mutations) {
+            if (mutation.type === 'childList') {
+                let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+                if (main_ul) {
+                    observer.disconnect();
+                    create(main_ul);
+                }
             }
-
-            config = get_config();
-            unsafeWindow.deezer_artist_dumper_config = config;
-            last_dump_song_ids = [];
-
-            set_css();
-            main_ul.style.position = "relative";
-
-            const main_div = create_main_div();
-            const regex_dropdown = create_regexes_dropdown();
-            const options_div = create_options();
-
-
-            let new_playlist_btn = create_new_playlist_btn();
-            new_playlist_btn.setAttribute("selected", "");
-            selected_playlist = new_playlist_btn;
-
-            const playlists = get_playlists()
-            const playlist_ul = create_playlists_btns(playlists, new_playlist_btn);
-            const search_bar = create_search_bar(playlists, playlist_ul);
-
-            const submit_btn = create_submit_btn(main_div);
-            const load_btn = create_load_btn();
-            const artdump_log_textarea = create_artdump_log_textarea();
-            artdump_log = new Artdump_log(artdump_log_textarea);
-            const main_btn = create_main_btn(main_div);
-
-            main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, artdump_log_textarea, load_btn);
-            main_ul.append(main_btn, main_div);
         }
-    }, 200)
+    });
+
+    observer.observe(document.body, {childList: true, subtree: true});
+
+    function create(main_ul) {
+        Artdump_log.console("Element found");
+        if (document.querySelector(".main_btn") !== null) {
+            return;
+        }
+
+        config = get_config();
+        unsafeWindow.deezer_artist_dumper_config = config;
+        last_dump_song_ids = [];
+
+        set_css();
+        main_ul.style.position = "relative";
+
+        const main_div = create_main_div();
+        const regex_dropdown = create_regexes_dropdown();
+        const options_div = create_options();
+
+
+        let new_playlist_btn = create_new_playlist_btn();
+        new_playlist_btn.setAttribute("selected", "");
+        selected_playlist = new_playlist_btn;
+
+        const playlists = get_playlists()
+        const playlist_ul = create_playlists_btns(playlists, new_playlist_btn);
+        const search_bar = create_search_bar(playlists, playlist_ul);
+
+        const submit_btn = create_submit_btn(main_div);
+        const load_btn = create_load_btn();
+        const artdump_log_textarea = create_artdump_log_textarea();
+        artdump_log = new Artdump_log(artdump_log_textarea);
+        const main_btn = create_main_btn(main_div);
+
+        main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, artdump_log_textarea, load_btn);
+        main_ul.append(main_btn, main_div);
+    }
 }
