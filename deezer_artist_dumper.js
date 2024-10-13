@@ -1,20 +1,20 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.5
+// @version      1.4.6
 // @description  Adds the feature to add all songs by an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @grant        unsafeWindow
-// @grant        GM_addStyle
 // ==/UserScript==
 
 function set_css() {
-    const css = `
-.main_btn {
+    const css = document.createElement("style");
+    css.type = "text/css";
+    css.textContent = `
+.artist_dumper_main_btn {
     display: inline-flex;
     align-items: center;
     min-width: var(--tempo-sizes-size-xl);
@@ -23,23 +23,17 @@ function set_css() {
     border-radius: 50%;
     fill: currentcolor;
 }
-.main_btn:hover, .regex_btns:hover, .my_textarea:hover {
-  background-color: var(--tempo-colors-background-neutral-tertiary-hovered);
+.artist_dumper_main_btn:hover, .artist_dumper_regex_btns:hover, .artist_dumper_textarea:hover {
+    background-color: var(--tempo-colors-background-neutral-tertiary-hovered);
 }
-.main_btn svg path {
+.artist_dumper_main_btn svg path {
     fill: currentcolor;
 }
-.main_btn.active svg path {
+.artist_dumper_main_btn.active svg path {
     fill: var(--tempo-colors-text-accent-primary-default);
 }
-.main_btn_text {
-    display: inline-block;
-    padding-top: 4.4px;
-    scale: 3.5;
-    pointer-events: none;
-}
 
-.main_div {
+.artist_dumper_main_div {
     position: absolute;
     left: 110%;
     top: -600%;
@@ -51,13 +45,14 @@ function set_css() {
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     cursor: pointer;
     z-index: 100;
+    box-shadow: var(--popper-shadow);
 }
-.main_div * {
+.artist_dumper_main_div * {
     font-size: 14px;
     color: currentcolor;
 }
 
-.my_textarea {
+.artist_dumper_textarea {
     position: relative;
     width: 100%;
     height: 75px;
@@ -69,35 +64,35 @@ function set_css() {
     resize: vertical;
     overflow-y: auto;
 }
-.my_textarea:hover, .my_dropdown:hover, .searchbar:hover, .regex_input:hover, .min_song_length_input:hover {
+.artist_dumper_textarea:hover, .artist_dumper_dropdown:hover, .artist_dumper_searchbar:hover, .artist_dumper_regex_input:hover, .artist_dumper_min_song_length_input:hover {
     border-color: var(--tempo-colors-text-neutral-secondary-default) !important;
 }
 
-.options_div {
+.artist_dumper_options_div {
     padding: 5px;
     display: grid;
     grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.16fr) minmax(0, 0.09fr);
     box-sizing: border-box;
     border: 1px solid var(--tempo-colors-divider-neutral-primary-default);
 }
-.options_div .song_type_options_div {
+.artist_dumper_options_div .artist_dumper_song_type_options_div {
     padding: 5px;
     display: grid;
     box-sizing: border-box;
     grid-template-columns: minmax(0, 0.12fr) minmax(0, 0.2fr) minmax(0, 0.18fr) minmax(0, 0.24fr) minmax(0, 0.26fr);
 }
-.options_div .song_type_options_div input {
+.artist_dumper_options_div .artist_dumper_song_type_options_div input {
     margin-left: 5px;
 }
 
-.my_dropdown {
+.artist_dumper_dropdown {
     font-size: 14px;
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 4px;
 }
 
-.min_song_length_input {
+.artist_dumper_min_song_length_input {
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 4px;
     background-color: var(--tempo-colors-background-neutral-secondary-default);
@@ -105,7 +100,7 @@ function set_css() {
     margin-left: 5px;
 }
 
-.searchbar {
+.artist_dumper_searchbar {
     width: 100%;
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 6px;
@@ -114,39 +109,39 @@ function set_css() {
     padding: 8px 11px;
 }
 
-.new_playlist_btn {
+.artist_dumper_new_playlist_btn {
     width: 100%;
     display: inline-flex;
     align-items: center;
 }
-.new_playlist_btn span {
+.artist_dumper_new_playlist_btn span {
     color: var(--tempo-colors-text-accent-primary-default);
     padding-right: 5px;
 }
-.new_playlist_btn span svg path {
+.artist_dumper_new_playlist_btn span svg path {
     fill: var(--tempo-colors-text-accent-primary-default);
 }
 
-.playlist_ul {
+.artist_dumper_playlist_ul {
     width: 100%;
     height: 200px;
     overflow: auto;
     position: relative;
     top: 6px;
 }
-.playlist_ul button {
+.artist_dumper_playlist_ul button {
     width: 100%;
     padding: 12px 16px;
     text-align: left;
 }
-.playlist_ul button:hover {
+.artist_dumper_playlist_ul button:hover {
     background-color: var(--tempo-colors-bg-contrast);
 }
-.playlist_ul button[selected=""] {
+.artist_dumper_playlist_ul button[selected=""] {
     background-color: #463554a1;
 }
 
-.action_btn {
+.artist_dumper_action_btn {
     width: 100%;
     position: relative;
     background-color: var(--tempo-colors-background-accent-primary-default);
@@ -155,43 +150,43 @@ function set_css() {
     border-radius: 5px;
     padding: 10px;
 }
-.action_btn:hover {
+.artist_dumper_action_btn:hover {
     background-color: var(--tempo-colors-background-accent-primary-hovered);
 }
 
-.regex_parent_group {
+.artist_dumper_regex_parent_group {
     border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
 }
-.regex_dropdown_toggle_btn {
+.artist_dumper_regex_dropdown_toggle_btn {
     width: 80%;
     font-size: 20px;
     font-weight: bold;
     text-align: left;
     padding: 8px 15px;
 }
-.regex_dropdown_toggle_btn::before {
+.artist_dumper_regex_dropdown_toggle_btn::before {
     content: "▶";
 }
-.regex_dropdown.open .regex_dropdown_toggle_btn::before {
+.artist_dumper_regex_dropdown.open .artist_dumper_regex_dropdown_toggle_btn::before {
     content: "▼";
 }
-.regex_dropdown.open .regex_dropdown_menu {
+.artist_dumper_regex_dropdown.open .artist_dumper_regex_dropdown_menu {
     max-height: 150px;
 }
 
-.regex_btns {
+.artist_dumper_regex_btns {
     border-radius: 50%;
     font-size: 25px;
     min-width: 30px;
 }
 
-.regex_dropdown_menu {
+.artist_dumper_regex_dropdown_menu {
     overflow-x: scroll;
     overflow: auto;
     max-height: 0;
     transition: max-height 0.3s ease;
 }
-.regex_dropdown_item {
+.artist_dumper_regex_dropdown_item {
     display: grid;
     grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr); /* This adds up 0.985, the 0.015 are used for the scaling of the trashcan on hover */
     box-sizing: border-box;
@@ -199,12 +194,12 @@ function set_css() {
     padding: 4px 2px;
 }
 
-.regex_dropdown_item select {
+.artist_dumper_regex_dropdown_item select {
     background-color: var(--tempo-colors-background-neutral-secondary-default);
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 4px;
 }
-.regex_dropdown_item .regex_input {
+.artist_dumper_regex_dropdown_item .artist_dumper_regex_input {
     color: var(--color-text-secondary);
     border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
     border-radius: 6px;
@@ -212,24 +207,24 @@ function set_css() {
     padding: 2px 4px;
     margin-right: 3px;
 }
-.regex_dropdown_item .regex_input.error {
+.artist_dumper_regex_dropdown_item .artist_dumper_regex_input.error {
    background-color: #f0404040;
 }
-.regex_dropdown_item .applies_for_checkbox {
+.artist_dumper_regex_dropdown_item .artist_dumper_applies_for_checkbox {
     transform: scale(0.5);
 }
-.regex_delete_btn {
+.artist_dumper_regex_delete_btn {
     font-size: 18px;
     scale: 1.1;
 }
-.regex_delete_btn:hover {
+.artist_dumper_regex_delete_btn:hover {
     scale: 1.2;
 }
-.regex_dropdown_item span {
+.artist_dumper_regex_dropdown_item span {
     margin-left: 3px;
 }
-`
-    GM_addStyle(css);
+`;
+    document.querySelector("head").appendChild(css);
 }
 
 // data stuff
@@ -238,6 +233,7 @@ async function get_user_data() {
     const r = await fetch("https://www.deezer.com/ajax/gw-light.php?method=deezer.getUserData&input=3&api_version=1.0&api_token=", {
         "body": "{}",
         "method": "POST",
+        "credentials": "include"
     });
     if (!r.ok) {
         return null;
@@ -277,7 +273,8 @@ function get_playlists() {
 }
 
 function get_config() {
-    const config = GM_getValue("artist_dumper_config", { // default settings
+    const config = localStorage.getItem("artist_dumper_config")
+    return config ? JSON.parse(config) : { // default settings
         toggles: {
             ep: true,
             singles: true,
@@ -300,12 +297,11 @@ function get_config() {
                 }
             }
         ]
-    });
-    return typeof(config) === "string" ? JSON.parse(config) : config; // backwards compatibility for when the config was stored as a string
+    };
 }
 
 function set_config() {
-    GM_setValue("artist_dumper_config", config);
+    localStorage.setItem("artist_dumper_config", JSON.stringify(config));
 }
 
 
@@ -505,6 +501,7 @@ async function create_playlist(songs, artist_name) {
             "status": 1
         }),
         "method": "POST",
+        "credentials": "include"
     });
     const resp = await r.json();
     return resp;
@@ -643,7 +640,7 @@ async function submit(main_div) {
         regexes: config.regexes,
         song_ids: []
     }
-    download_btn = create_download_btn(data, new Date()); // reference to data not by value
+    download_btn = create_download_btn(data, new Date()); // reference to data not value, so
     main_div.appendChild(download_btn);
 
     const auth_token = await get_auth_token();
@@ -797,7 +794,7 @@ function create_main_btn(main_div) {
 
     const main_btn = document.createElement("button");
 
-    main_btn.className = "main_btn";
+    main_btn.className = "artist_dumper_main_btn";
     main_btn.innerHTML = `<svg viewBox="0 0 24 24" width="27px" height="27px">
         <path
             fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
@@ -812,7 +809,7 @@ function create_main_btn(main_div) {
     main_btn.onclick = () => {
         show = !show
         main_div.style.display = show ? "block" : "none";
-        main_btn.className = show ? "main_btn active": "main_btn";
+        main_btn.className = show ? "artist_dumper_main_btn active": "artist_dumper_main_btn";
     }
     return li;
 }
@@ -820,18 +817,18 @@ function create_main_btn(main_div) {
 
 function create_main_div() {
     const main_div = document.createElement("div");
-    main_div.className = "main_div";
+    main_div.className = "artist_dumper_main_div";
     return main_div;
 }
 
 function create_regexes_dropdown() {
     function create_item(regex_ref) {
         const dropdown_item = document.createElement("div");
-        dropdown_item.className = "regex_dropdown_item";
+        dropdown_item.className = "artist_dumper_regex_dropdown_item";
 
         const allowed_flags = ["d", "g", "i", "m", "s", "u", "v", "y"]
         const regex_input = document.createElement("input")
-        regex_input.className = "regex_input";
+        regex_input.className = "artist_dumper_regex_input";
         regex_input.placeholder = "Regex";
         regex_input.value = regex_ref.str;
         regex_input.oninput = () => {
@@ -847,7 +844,7 @@ function create_regexes_dropdown() {
         }
 
         const regex_flags_input = document.createElement("input")
-        regex_flags_input.className = "regex_input";
+        regex_flags_input.className = "artist_dumper_regex_input";
         regex_flags_input.placeholder = "Flags";
         regex_flags_input.value = regex_ref.flags;
         regex_flags_input.oninput = () => {
@@ -864,7 +861,7 @@ function create_regexes_dropdown() {
         }
 
         const type_dropdown = document.createElement("select");
-        type_dropdown.className = "my_dropdown";
+        type_dropdown.className = "artist_dumper_dropdown";
         const blacklist_opt = document.createElement("option");
         blacklist_opt.textContent = "Block";
         const whitelist_opt = document.createElement("option");
@@ -878,9 +875,9 @@ function create_regexes_dropdown() {
 
         const for_artist_dropdown = document.createElement("select");
         for_artist_dropdown.style.marginLeft = "3px";
-        for_artist_dropdown.className = "my_dropdown";
+        for_artist_dropdown.className = "artist_dumper_dropdown";
         const all_artists_opt = document.createElement("option");
-        all_artists_opt.textContent = "Any Artist"; // "Any" and "This" are carefully chosen to be similar in length (not just amount of character but actualy length)
+        all_artists_opt.textContent = "Any Artist"; // "Any" and "This" are carefully chosen to be similar in length (not just amount of character but actual length)
         const this_artist_opt = document.createElement("option");
         this_artist_opt.textContent = "This Artist";
 
@@ -893,7 +890,7 @@ function create_regexes_dropdown() {
 
         const applies_to_song_checkbox = document.createElement("input");
         applies_to_song_checkbox.type = "checkbox";
-        applies_to_song_checkbox.className = "applies_for_checkbox";
+        applies_to_song_checkbox.className = "artist_dumper_applies_for_checkbox";
         applies_to_song_checkbox.checked = regex_ref.applies_to.song;
         applies_to_song_checkbox.onclick = () => {
             regex_ref.applies_to.song = !regex_ref.applies_to.song;
@@ -916,7 +913,7 @@ function create_regexes_dropdown() {
 
         const delete_btn = document.createElement("button")
         delete_btn.textContent = "🗑";
-        delete_btn.className = "regex_delete_btn";
+        delete_btn.className = "artist_dumper_regex_delete_btn";
 
         delete_btn.onclick = () => {
             config.regexes.splice(config.regexes.indexOf(regex_ref), 1);
@@ -931,27 +928,27 @@ function create_regexes_dropdown() {
 
     // create fundamental structure
     const dropdown = document.createElement("div");
-    dropdown.className = "regex_dropdown";
+    dropdown.className = "artist_dumper_regex_dropdown";
 
     const dropdown_menu = document.createElement("div");
-    dropdown_menu.className = "regex_dropdown_menu";
+    dropdown_menu.className = "artist_dumper_regex_dropdown_menu";
 
     // create the button to toggle and the button to create a new regex
 
     const dropdown_btn_and_create_new_btn_group = document.createElement("ul");
     dropdown_btn_and_create_new_btn_group.setAttribute("data-orientation", "horizontal");
-    dropdown_btn_and_create_new_btn_group.className = "regex_parent_group";
+    dropdown_btn_and_create_new_btn_group.className = "artist_dumper_regex_parent_group";
 
     const dropdown_btn = document.createElement("button");
     dropdown_btn.textContent = " Regexes";
-    dropdown_btn.title = "Use deezer_artist_dumper_config in console to get every regex and other stuff";
-    dropdown_btn.className = "regex_dropdown_toggle_btn";
+    dropdown_btn.title = "Use artist_dumper_config in console to get every regex and other stuff";
+    dropdown_btn.className = "artist_dumper_regex_dropdown_toggle_btn";
     dropdown_btn.onclick = () => {
         dropdown.classList.toggle("open");
     }
 
     const create_new_btn = document.createElement("button");
-    create_new_btn.className = "regex_btns";
+    create_new_btn.className = "artist_dumper_regex_btns";
     create_new_btn.textContent = "➕︎";
     create_new_btn.title = "Create new regex"
     create_new_btn.onclick = () => {
@@ -1016,7 +1013,7 @@ function create_regexes_dropdown() {
     }
 
     const import_btn = document.createElement("button");
-    import_btn.className = "regex_btns";
+    import_btn.className = "artist_dumper_regex_btns";
     import_btn.textContent = "⤓";
     import_btn.title = "Import regexes without removing existing ones";
     import_btn.onclick = () => {
@@ -1026,7 +1023,7 @@ function create_regexes_dropdown() {
 
 
     const export_btn = document.createElement("button");
-    export_btn.className = "regex_btns";
+    export_btn.className = "artist_dumper_regex_btns";
     export_btn.title = "Export regexes";
     export_btn.textContent = "⤒";
     export_btn.onclick = () => {
@@ -1046,7 +1043,7 @@ function create_regexes_dropdown() {
 
     // create headers
     const header_item = document.createElement("div");
-    header_item.className = "regex_dropdown_item";
+    header_item.className = "artist_dumper_regex_dropdown_item";
 
     [
         ["Regex", "The regex used to filter"],
@@ -1076,10 +1073,10 @@ function create_regexes_dropdown() {
 
 function create_options() {
     const options_div = document.createElement("div");
-    options_div.className = "options_div";
+    options_div.className = "artist_dumper_options_div";
 
     const song_type_options = document.createElement("div");
-    song_type_options.className = "song_type_options_div";
+    song_type_options.className = "artist_dumper_song_type_options_div";
     const types = ["EP", "Singles", "Album", "Featured", "Duplicates"]
     let input, lbl;
     for (let type of types) {
@@ -1108,7 +1105,7 @@ function create_options() {
     opts[1].textContent = "Popularity";
 
     const order_dropdown = document.createElement("select");
-    order_dropdown.className = "my_dropdown";
+    order_dropdown.className = "artist_dumper_dropdown";
     order_dropdown.title = "Order of songs. Does not really affect anything at the moment, as the songs get added all at once so deezer sorts them by their song id internally which is MOSTLY equal to release date, but can have exceptions.";
     order_dropdown.append(...opts)
     order_dropdown.selectedIndex = config.order;
@@ -1119,7 +1116,7 @@ function create_options() {
 
     const min_song_length_input = document.createElement("input");
     min_song_length_input.type = "number";
-    min_song_length_input.className = "min_song_length_input";
+    min_song_length_input.className = "artist_dumper_min_song_length_input";
     min_song_length_input.placeholder = "Min. Length";
     min_song_length_input.title = "Minimum Song Length in seconds";
     min_song_length_input.value = config.min_length;
@@ -1136,7 +1133,7 @@ function create_options() {
 function create_search_bar(playlists, playlist_ul) {
     const input = document.createElement("input")
     input.placeholder = "Search Playlist 🔎︎";
-    input.className = "searchbar";
+    input.className = "artist_dumper_searchbar";
     input.oninput = (e) => {
         for (let playlist of playlists) {
             playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`).style.display = playlist.TITLE.toLowerCase().includes(input.value.toLowerCase()) ? "" : "none";
@@ -1149,7 +1146,7 @@ function create_search_bar(playlists, playlist_ul) {
 function create_new_playlist_btn() {
     const new_playlist_btn = document.createElement("button");
     new_playlist_btn.type = "button";
-    new_playlist_btn.className = "new_playlist_btn";
+    new_playlist_btn.className = "artist_dumper_new_playlist_btn";
     new_playlist_btn.title = "(Recommended) Creates a new private playlist with the name and picture of the artist where the songs will be added to.";
     new_playlist_btn.setAttribute("data-id", "-1");
 
@@ -1172,7 +1169,7 @@ function create_new_playlist_btn() {
 
 function create_playlists_btns(playlists, new_playlist_btn) {
     const playlist_ul = document.createElement("ul");
-    playlist_ul.className = "playlist_ul";
+    playlist_ul.className = "artist_dumper_playlist_ul";
 
     let playlist_li = document.createElement("li");
     playlist_li.appendChild(new_playlist_btn);
@@ -1200,7 +1197,7 @@ function create_playlists_btns(playlists, new_playlist_btn) {
 function create_submit_btn(main_div) {
     const submit_btn = document.createElement("button");
     submit_btn.textContent = "Submit";
-    submit_btn.className = "action_btn";
+    submit_btn.className = "artist_dumper_action_btn";
     submit_btn.style.top = "10px";
     submit_btn.style.marginBottom = "10px";
     submit_btn.title = "Starts the whole process. The settings (regex, checkboxes) will be saved locally for the next use."
@@ -1212,7 +1209,7 @@ function create_submit_btn(main_div) {
 
 function create_artdump_log_textarea() {
     const artdump_log_textarea = document.createElement("textarea");
-    artdump_log_textarea.className = "my_textarea";
+    artdump_log_textarea.className = "artist_dumper_textarea";
     artdump_log_textarea.placeholder = "Log (Click to Copy)";
     artdump_log_textarea.title = "Logs information about the process. Click to Copy.";
     artdump_log_textarea.readOnly = true;
@@ -1234,7 +1231,7 @@ function create_load_btn(data, time) {
 
     const load_btn = document.createElement("button");
     load_btn.textContent = "Load Dump";
-    load_btn.className = "action_btn";
+    load_btn.className = "artist_dumper_action_btn";
     load_btn.title = "Load data from an earlier dump."
     load_btn.onclick = () => {
         file_input.value = null;
@@ -1287,7 +1284,7 @@ function create_load_btn(data, time) {
 function create_download_btn(data, time) {
     const download_btn = document.createElement("button");
     download_btn.textContent = "Download Dump";
-    download_btn.className = "action_btn";
+    download_btn.className = "artist_dumper_action_btn";
     download_btn.title = "Download data for this dump.";
     download_btn.style.marginTop = "1px";
     download_btn.onclick = () => {
@@ -1358,34 +1355,38 @@ if (location.pathname.includes("/artist/")) {
 
 async function artist_main() {
     if (!user_data) {
-      user_data = await get_user_data();
+        user_data = await get_user_data();
     }
     if (!user_data) {
         Artdump_log.console("Not logged in");
     }
 
-    const observer = new MutationObserver(mutations => {
-        for (let mutation of mutations) {
-            if (mutation.type === 'childList') {
-                let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
-                if (main_ul) {
-                    observer.disconnect();
-                    create(main_ul);
+    let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+    if (main_ul) {
+        create_ui(main_ul);
+    } else {
+        const observer = new MutationObserver(mutations => {
+            for (let mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+                    if (main_ul) {
+                        observer.disconnect();
+                        create_ui(main_ul);
+                    }
                 }
             }
-        }
-    });
+        });
+        observer.observe(document.body, {childList: true, subtree: true});
+    }
 
-    observer.observe(document.body, {childList: true, subtree: true});
 
-    function create(main_ul) {
+    function create_ui(main_ul) {
         Artdump_log.console("Element found");
-        if (document.querySelector(".main_btn") !== null) {
+        if (document.querySelector(".artist_dumper_main_btn") !== null) {
             return;
         }
 
         config = get_config();
-        unsafeWindow.deezer_artist_dumper_config = config;
         last_dump_song_ids = [];
 
         set_css();
