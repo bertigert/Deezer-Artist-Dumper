@@ -6,7 +6,7 @@ Aims to mimic the Deezer Design on desktop. Supports both dark and white mode, a
 I do not know if "all" are really all songs, with all I mean every song which is listed on the discography page of an artist. I believe the Top 100 Tracks cannot include more songs. If that is wrong, contact me and I will add that.
 
 ## Now also supported for the desktop application
-Thanks to [DeezMod](https://github.com/bababoi-2/DeezMod) project we can now easily use scripts within the desktop application. You can download the version for that script [here](https://github.com/bababoi-2/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js)
+Thanks to the [DeezMod](https://github.com/bababoi-2/DeezMod) project we can now easily use scripts within the desktop application. You can download the version for that script [here](https://github.com/bababoi-2/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js)
 
 ---
 ![image (2)](https://github.com/user-attachments/assets/08383448-5365-4f9e-b682-8bde2ce288af)
