@@ -256,10 +256,6 @@ function get_api_token() {
     return user_data.results.checkForm;
 }
 
-function get_user_id() {
-    return user_data.results.USER.USER_ID;
-}
-
 function get_current_artist_id() {
     return location.pathname.split("/artist/")[1].split("/", 1)[0];
 }
@@ -269,7 +265,7 @@ function get_current_artist_name() {
 }
 
 function get_playlists() {
-    return JSON.parse(localStorage.getItem("PLAYLISTS_"+get_user_id())).data;
+    return JSON.parse(localStorage.getItem("PLAYLISTS_"+user_id)).data;
 }
 
 function get_config() {
@@ -319,12 +315,13 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                         "artistId": artist_id,
                         "nb": 500,
                         "cursor": last_song,
+                        "mode": "ALL",
                         "subType": null,
                         "roles": roles,
                         "order": config.order === 0 ? "RELEASE_DATE" : "RANK",
                         "types": types
                     },
-                    "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
+                    "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $mode: DiscographyMode, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      mode: $mode\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
                 }),
                 "method": "POST",
             });
@@ -1306,6 +1303,7 @@ function create_download_btn(data, time) {
 // globals
 let config;
 let user_data;
+let user_id;
 let last_dump_song_ids;
 let selected_playlist;
 let artdump_log;
@@ -1360,6 +1358,8 @@ async function artist_main() {
     if (!user_data) {
         Artdump_log.console("Not logged in");
     }
+
+    user_id = user_data.results.USER.USER_ID;
 
     let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
     if (main_ul) {
