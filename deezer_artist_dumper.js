@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.6
+// @version      1.4.7
 // @description  Adds the feature to add all songs by an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -135,7 +135,7 @@ function set_css() {
     text-align: left;
 }
 .artist_dumper_playlist_ul button:hover {
-    background-color: var(--tempo-colors-bg-contrast);
+    background-color: var(--tempo-colors-background-neutral-secondary-hovered);
 }
 .artist_dumper_playlist_ul button[selected=""] {
     background-color: #463554a1;
@@ -282,7 +282,7 @@ function get_config() {
         min_length: 60,
         regexes: [
             {
-                str: String.raw`(\(|- )(((super )?slowed(( *&| *\+| *,) *reverb)?)|(sped up)|(reverb)|(8d audio)|(speed))( version)?\)? *$`, // https://regex101.com/r/cU3ajr/1
+                str: String.raw`[([-] *(((super )?slowed( *down)?)|(spee?d( up)?)|(reverb)|(8d audio)|(live))(.*reverb)?( *version)? *[)\]]? *$`, // https://regex101.com/r/cU3ajr/1
                 flags: "i",
                 type: 0, // 0 = blacklist, 1 = whitelist
                 for_artist: "-1", // -1 = every artist, any other number is artist id
@@ -315,13 +315,12 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                         "artistId": artist_id,
                         "nb": 500,
                         "cursor": last_song,
-                        "mode": "ALL",
                         "subType": null,
                         "roles": roles,
                         "order": config.order === 0 ? "RELEASE_DATE" : "RANK",
                         "types": types
                     },
-                    "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $mode: DiscographyMode, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      mode: $mode\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
+                    "query": "query ArtistDiscographyByType($artistId: String!, $nb: Int!, $roles: [ContributorRoles!]!, $types: [AlbumTypeInput!]!, $subType: AlbumSubTypeInput, $cursor: String, $order: AlbumOrder) {\n  artist(artistId: $artistId) {\n    albums(\n      after: $cursor\n      first: $nb\n      onlyCanonical: true\n      roles: $roles\n      types: $types\n      subType: $subType\n      order: $order\n    ) {\n      edges {\n        node {\n          ...AlbumBase\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment AlbumBase on Album {\n  id\n  displayTitle\n}"
                 }),
                 "method": "POST",
             });
