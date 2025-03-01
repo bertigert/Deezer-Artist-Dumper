@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.7
+// @version      1.4.8
 // @description  Adds the feature to add all songs by an artist to a playlist
 // @author       Bababoiiiii
 // @match        https://www.deezer.com/*
@@ -62,7 +62,8 @@ function set_css() {
     color: var(--tempo-colors-text-neutral-secondary-default);
     padding: 5px;
     resize: vertical;
-    overflow-y: auto;
+    overflow: auto;
+    white-space: pre;
 }
 .artist_dumper_textarea:hover, .artist_dumper_dropdown:hover, .artist_dumper_searchbar:hover, .artist_dumper_regex_input:hover, .artist_dumper_min_song_length_input:hover {
     border-color: var(--tempo-colors-text-neutral-secondary-default) !important;
@@ -208,7 +209,7 @@ function set_css() {
     margin-right: 3px;
 }
 .artist_dumper_regex_dropdown_item .artist_dumper_regex_input.error {
-   background-color: #f0404040;
+    background-color: #f0404040;
 }
 .artist_dumper_regex_dropdown_item .artist_dumper_applies_for_checkbox {
     transform: scale(0.5);
@@ -428,10 +429,16 @@ async function get_all_songs(auth_token, artist_id, regexes) {
 
             // if a contributor is blacklisted or not whitelisted
             if (album_song.ARTISTS.some( (artist) => (
-                !does_string_match(artist.ART_NAME, regexes.whitelist.artist, true) ||
                 does_string_match(artist.ART_NAME, regexes.blacklist.artist, false)
             ))) {
                 artdump_log.info(`Song ${song_title} features a blacklisted artist`);
+                continue;
+            }
+
+            if (!album_song.ARTISTS.some( (artist) => (
+                does_string_match(artist.ART_NAME, regexes.whitelist.artist, true)
+            ))) {
+                artdump_log.info(`Song ${song_title} does not feature a whitelisted artist`);
                 continue;
             }
 
@@ -743,17 +750,49 @@ class Artdump_log {
         this.INFO = "?";
         this.ERROR = "!";
         this.SUCCESS = "*";
-        this.log_textarea = log_textarea;
+        this._log_textarea = log_textarea;
+        this._log_buffer = [];
+        this._log_timer = null;
+    }
+
+    _trim_to_max_lines() {
+        // find the position of the last newline character in the limit of <500> (val may change but this comment not)
+        const text = this._log_textarea.value;
+        let last_newline_index = text.length;
+        for (let i = 0; i <= 500; i++) {
+            last_newline_index = text.lastIndexOf("\n", last_newline_index-1);
+            if (last_newline_index === -1) return; // less than 500 lines
+        }
+        this._log_textarea.value = text.slice(last_newline_index+1);
     }
 
     _log(type_prefix, ...args) {
-        const time = new Date();
-        this.log_textarea.value += `[${time.toLocaleTimeString()}] [${type_prefix}] ${args.join(" ")}\n`
-        this.log_textarea.scrollTop = this.log_textarea.scrollHeight;
+        const new_log_entry = `[${new Date().toLocaleTimeString()}] [${type_prefix}] ${args.join(" ")}`;
+        this._log_buffer.push(new_log_entry);
+
+        if (!this._log_timer) {
+            this._log_timer = setTimeout(() => this._flush_log_buffer(), 100);
+        }
+    }
+
+    _flush_log_buffer() {
+        this._log_timer = null;
+        if (this._log_buffer.length === 0) return;
+
+        // write buffer and reset logic afterwards
+        this._log_textarea.value += this._log_buffer.join("\n") + "\n";
+        this._log_buffer = [];
+
+        this._trim_to_max_lines();
+
+        this._log_textarea.scrollTop = this._log_textarea.scrollHeight;
     }
 
     clear() {
-        this.log_textarea.value = "";
+        this._log_textarea.value = "";
+        this._log_buffer = [];
+        clearTimeout(this._log_timer);
+        this._log_timer = null;
     }
 
     info(...args) {
@@ -781,7 +820,6 @@ function change_selected_playlist(new_playlist) {
         selected_playlist = new_playlist;
     }
 }
-
 
 
 function create_main_btn(main_div) {
