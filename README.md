@@ -29,7 +29,6 @@ Thanks to the [DeezMod](https://github.com/bertigert/DeezMod) project we can now
 
 
 ## TODO
-- setting to add the songs one by one which results in them being able to be sorted by release date or rank properly (would be way slower when enabled as there would be a synchronous (since we want to keep order) request for every song. You could probably reduce the amount of requests by grouping songs with in-order song ids together and only if there is a song with a out-of-order song id send another request)
 - create dump from playlist
   - automatically determine dominant artist/let user choose 
   - automatically create regex which would blacklist songs from the artist which are not in the current playlist
