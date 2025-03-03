@@ -1,12 +1,12 @@
 # Deezer-Artist-Dumper / Downloader
 
-A script which adds the functionality to download all of the Artists EPs, Singles, Albums and Features using no dependenices. Designed for Chrome w/ Violentmonkey, should work with other browsers and userscript managers. Now also supports the [desktop](https://github.com/bababoi-2/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js) application.
+A script which adds the functionality to download all of the Artists EPs, Singles, Albums and Features using no dependenices. Designed for Chrome w/ Violentmonkey, should work with other browsers and userscript managers. Now also supports the [desktop](https://github.com/bertigert/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js) application.
 
 Aims to mimic the Deezer Design on desktop. Supports both dark and white mode, although intended for dark mode.
 I do not know if "all" are really all songs, with all I mean every song which is listed on the discography page of an artist. I believe the Top 100 Tracks cannot include more songs. If that is wrong, contact me and I will add that.
 
 ## Now also supported for the desktop application
-Thanks to the [DeezMod](https://github.com/bababoi-2/DeezMod) project we can now easily use scripts within the desktop application. You can download the version for that script [here](https://github.com/bababoi-2/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js)
+Thanks to the [DeezMod](https://github.com/bertigert/DeezMod) project we can now easily use scripts within the desktop application. You can download the version for that script [here](https://github.com/bertigert/Deezer-Artist-Dumper/blob/desktop/deezer_artist_dumper.js)
 
 ---
 ![image (2)](https://github.com/user-attachments/assets/08383448-5365-4f9e-b682-8bde2ce288af)
@@ -24,7 +24,7 @@ Thanks to the [DeezMod](https://github.com/bababoi-2/DeezMod) project we can now
 - A dump merge script is included which can be used to merge multiple dumps into a single dump, simplifying the dump loading process for later uses (a update dumps script is also included which should update old version dumps to a the new version)
 
 ## Links
-- [Github](https://github.com/bababoi-2/Deezer-Artist-Dumper/)
+- [Github](https://github.com/bertigert/Deezer-Artist-Dumper/)
 - [GreazyFork](https://greasyfork.org/en/scripts/497123)
 
 
