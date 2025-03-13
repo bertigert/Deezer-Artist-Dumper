@@ -600,7 +600,7 @@ function parse_regexes() {
 
         for (let applies_to of Object.entries(regex.applies_to)) {
             if (applies_to[1]) {
-                console.log(`Regex "${regex_exp}" is valid (${["blacklist", "whitelist"][regex.type]}) (${applies_to[0]})`);
+                Artdump_log.console(`Regex "${regex_exp}" is valid (${["blacklist", "whitelist"][regex.type]}) (${applies_to[0]})`);
                 regexes[["blacklist", "whitelist"][regex.type]][applies_to[0]].push(regex_exp);
             }
         }
@@ -1376,7 +1376,7 @@ window.history.pushState = new Proxy(window.history.pushState, {
             artist_main();
         }
         return target.apply(thisArg, argArray);
-  },
+},
 });
 window.addEventListener("popstate", (e) => {
     if (is_new_artist(location.pathname)) {
