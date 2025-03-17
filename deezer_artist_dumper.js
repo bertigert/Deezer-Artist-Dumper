@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.4.8
 // @description  Adds the feature to add all songs by an artist to a playlist
-// @author       Bababoiiiii
+// @author       bertigert
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
 // @grant        GM_getValue
