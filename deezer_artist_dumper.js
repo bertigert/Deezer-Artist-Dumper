@@ -1,13 +1,11 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.8
+// @version      1.4.9
 // @description  Adds the feature to add all songs by an artist to a playlist
 // @author       bertigert
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
-// @grant        GM_getValue
-// @grant        GM_setValue
 // ==/UserScript==
 
 function set_css() {
@@ -1350,7 +1348,7 @@ let last_path = location.pathname;
 // url change stuff
 
 function is_new_artist(target_path) {
-    Artdump_log.console(`Navigated from ${last_path} to ${target_path}`);
+    //Artdump_log.console(`Navigated from ${last_path} to ${target_path}`);
 
     const last_id = last_path.split("/artist/")
     const target_id = target_path.split("/artist/");
