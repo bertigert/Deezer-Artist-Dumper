@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.5.0
+// @version      1.5.1
 // @description  Adds the feature to add all songs by an artist to a playlist or to the queue (Play Next)
 // @author       bertigert (fix by Vibe)
 // @match        https://www.deezer.com/*
@@ -92,24 +92,57 @@ function set_css() {
     padding: 5px;
     display: grid;
     grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.16fr) minmax(0, 0.09fr);
+    align-items: center;
     box-sizing: border-box;
     border: 1px solid var(--tempo-colors-divider-neutral-primary-default, #333);
+    gap: 8px;
 }
+
+.artist_dumper_options_div .artist_dumper_left_group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .artist_dumper_options_div .artist_dumper_song_type_options_div {
-    padding: 5px;
+    padding: 2px 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 14px;
     box-sizing: border-box;
 }
-.artist_dumper_options_div .artist_dumper_song_type_options_div label {
+
+/* Action Section with border and icon */
+.artist_dumper_options_div .artist_dumper_action_options_div {
+    display: flex;
+    align-items: center;
+}
+
+/* Insert the download icon via ::before */
+.artist_dumper_options_div .artist_dumper_action_options_div label::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    /* Clean inline SVG data URI matching currentColor */
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") no-repeat center;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") no-repeat center;
+}
+
+.artist_dumper_options_div label {
     white-space: nowrap;
     display: inline-flex;
     align-items: center;
+    cursor: pointer;
 }
-.artist_dumper_options_div .artist_dumper_song_type_options_div input {
+
+.artist_dumper_options_div input[type="checkbox"] {
     margin-left: 5px;
+    cursor: pointer;
 }
 
 .artist_dumper_dropdown {
@@ -236,6 +269,10 @@ function set_css() {
     border: none;
     cursor: pointer;
     color: currentcolor;
+}
+
+.artist_dumper_regex_btns--export {
+    transform: rotate(180deg);
 }
 
 .artist_dumper_regex_dropdown_menu {
@@ -1209,7 +1246,7 @@ function create_regexes_dropdown() {
     }
 
     const import_btn = document.createElement("button");
-    import_btn.className = "artist_dumper_regex_btns";
+    import_btn.className = "artist_dumper_regex_btns artist_dumper_regex_btns--import";
     import_btn.textContent = "⤓";
     import_btn.title = "Import regexes without removing existing ones";
     import_btn.onclick = () => {
@@ -1219,9 +1256,9 @@ function create_regexes_dropdown() {
 
 
     const export_btn = document.createElement("button");
-    export_btn.className = "artist_dumper_regex_btns";
+    export_btn.className = "artist_dumper_regex_btns artist_dumper_regex_btns--export";
     export_btn.title = "Export regexes";
-    export_btn.textContent = "⤒";
+    export_btn.textContent = "⤓";
     export_btn.onclick = () => {
         const formatted_time = (new Date()).toLocaleString('sv-SE', {
             year: 'numeric',
@@ -1271,36 +1308,44 @@ function create_options() {
     const options_div = document.createElement("div");
     options_div.className = "artist_dumper_options_div";
 
+    // --- Left Section Wrapper (Holds both filters and actions) ---
+    const left_group = document.createElement("div");
+    left_group.className = "artist_dumper_left_group";
+
+    // 1. Song Type Filters
     const song_type_options = document.createElement("div");
     song_type_options.className = "artist_dumper_song_type_options_div";
-    const types = ["EP", "Singles", "Album", "Featured", "Duplicates"]
-    let input, lbl;
-    for (let type of types) {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.title = `Wether to include ${type} or not`
+    const types = ["EP", "Singles", "Album", "Featured", "Duplicates"];
 
-        lbl = document.createElement("label");
+    for (let type of types) {
+        let input = document.createElement("input");
+        input.type = "checkbox";
+        input.title = `Whether to include ${type} or not`;
+
+        let lbl = document.createElement("label");
         lbl.textContent = type;
         lbl.appendChild(input);
 
-        type = type.toLowerCase();
-
-        input.checked = config.toggles[type]
+        let typeKey = type.toLowerCase();
+        input.checked = config.toggles[typeKey];
         input.onclick = () => {
-            config.toggles[type] = !config.toggles[type];
+            config.toggles[typeKey] = !config.toggles[typeKey];
             set_config();
-        }
+        };
 
         song_type_options.appendChild(lbl);
     }
+
+    // 2. Action / Behavior Options (Dump)
+    const action_options = document.createElement("div");
+    action_options.className = "artist_dumper_action_options_div";
 
     const download_dump_checkbox = document.createElement("input");
     download_dump_checkbox.type = "checkbox";
     download_dump_checkbox.title = "Automatically download the JSON dump file after a run";
 
     const download_dump_lbl = document.createElement("label");
-    download_dump_lbl.textContent = "Dump";
+    download_dump_lbl.textContent = "Dump JSON";
     download_dump_lbl.appendChild(download_dump_checkbox);
 
     download_dump_checkbox.checked = !!config.toggles.download_dump;
@@ -1309,23 +1354,27 @@ function create_options() {
         set_config();
     };
 
-    song_type_options.appendChild(download_dump_lbl);
+    action_options.appendChild(download_dump_lbl);
 
+    // Assemble the left group
+    left_group.append(song_type_options, action_options);
 
+    // --- Middle Section: Order Dropdown ---
     const opts = [document.createElement('option'), document.createElement('option')];
     opts[0].textContent = "Release Date";
     opts[1].textContent = "Popularity";
 
     const order_dropdown = document.createElement("select");
     order_dropdown.className = "artist_dumper_dropdown";
-    order_dropdown.title = "Order of songs. Does not really affect anything at the moment, as the songs get added all at once so deezer sorts them by their song id internally which is MOSTLY equal to release date, but can have exceptions.";
-    order_dropdown.append(...opts)
+    order_dropdown.title = "Order of songs...";
+    order_dropdown.append(...opts);
     order_dropdown.selectedIndex = config.order;
     order_dropdown.onchange = () => {
         config.order = order_dropdown.selectedIndex;
         set_config();
-    }
+    };
 
+    // --- Right Section: Min Length Input ---
     const min_song_length_input = document.createElement("input");
     min_song_length_input.type = "number";
     min_song_length_input.className = "artist_dumper_min_song_length_input";
@@ -1335,9 +1384,9 @@ function create_options() {
     min_song_length_input.onchange = () => {
         config.min_length = Number(min_song_length_input.value);
         set_config();
-    }
+    };
 
-    options_div.append(song_type_options, order_dropdown, min_song_length_input);
+    options_div.append(left_group, order_dropdown, min_song_length_input);
 
     return options_div;
 }
