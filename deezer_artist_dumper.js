@@ -1,12 +1,29 @@
 // ==UserScript==
 // @name         Deezer Artist Dumper
 // @namespace    http://tampermonkey.net/
-// @version      1.4.9
-// @description  Adds the feature to add all songs by an artist to a playlist
-// @author       bertigert
+// @version      1.5.1
+// @description  Adds the feature to add all songs by an artist to a playlist or to the queue (Play Next)
+// @author       bertigert (fix by Vibe)
 // @match        https://www.deezer.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deezer.com
+// @grant        none
 // ==/UserScript==
+
+// CHANGELOG v1.5.0
+// - FIX: Deezer redesigned the artist page ("naboo" catalog markup changed).
+//   The old selector `#page_naboo_artist > div.container > div > ul[role='group']`
+//   never matched, so the button never appeared. Now we look in the masthead
+//   of the new artist page with several fallbacks (including the old one).
+// - FIX: artist picture selector for new playlists (old container path is gone).
+// - FIX: artist name fallback (meta itemprop may be missing; use masthead h2).
+// - FIX: playlist list reading no longer crashes if the PLAYLISTS_ localStorage
+//   entry is absent/stale. It now falls back to the gw-light `deezer.pageProfile`
+//   endpoint.
+// - NEW: "Play Next (Queue)" target. Adds the dumped songs to the web player's
+//   queue via the internal `window.dzPlayer` bridge. Deezer exposes NO public
+//   HTTP API for the queue (it's client-side state), so this depends on the
+//   page-internal player object. If the hook is missing you get a clear log
+//   message instead of a silent failure.
 
 function set_css() {
     const css = document.createElement("style");
@@ -15,20 +32,23 @@ function set_css() {
 .artist_dumper_main_btn {
     display: inline-flex;
     align-items: center;
-    min-width: var(--tempo-sizes-size-xl);
-    min-height: var(--tempo-sizes-size-xl);
+    min-width: var(--tempo-sizes-size-xl, 40px);
+    min-height: var(--tempo-sizes-size-xl, 40px);
     justify-content: center;
     border-radius: 50%;
     fill: currentcolor;
+    background: transparent;
+    border: none;
+    color: inherit;
 }
 .artist_dumper_main_btn:hover, .artist_dumper_regex_btns:hover, .artist_dumper_textarea:hover {
-    background-color: var(--tempo-colors-background-neutral-tertiary-hovered);
+    background-color: var(--tempo-colors-background-neutral-tertiary-hovered, rgba(128,128,128,.2));
 }
 .artist_dumper_main_btn svg path {
     fill: currentcolor;
 }
 .artist_dumper_main_btn.active svg path {
-    fill: var(--tempo-colors-text-accent-primary-default);
+    fill: var(--tempo-colors-text-accent-primary-default, #a238ff);
 }
 
 .artist_dumper_main_div {
@@ -40,10 +60,10 @@ function set_css() {
     display: none;
     resize: horizontal;
     border-radius: 8px;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
     cursor: pointer;
     z-index: 100;
-    box-shadow: var(--popper-shadow);
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
 }
 .artist_dumper_main_div * {
     font-size: 14px;
@@ -55,70 +75,120 @@ function set_css() {
     width: 100%;
     height: 75px;
     line-height: 1.5;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
-    color: var(--tempo-colors-text-neutral-secondary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
+    color: var(--tempo-colors-text-neutral-secondary-default, #ccc);
     padding: 5px;
     resize: vertical;
     overflow: auto;
     white-space: pre;
+    box-sizing: border-box;
 }
 .artist_dumper_textarea:hover, .artist_dumper_dropdown:hover, .artist_dumper_searchbar:hover, .artist_dumper_regex_input:hover, .artist_dumper_min_song_length_input:hover {
-    border-color: var(--tempo-colors-text-neutral-secondary-default) !important;
+    border-color: var(--tempo-colors-text-neutral-secondary-default, #ccc) !important;
 }
 
 .artist_dumper_options_div {
     padding: 5px;
     display: grid;
     grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.16fr) minmax(0, 0.09fr);
+    align-items: center;
     box-sizing: border-box;
-    border: 1px solid var(--tempo-colors-divider-neutral-primary-default);
+    border: 1px solid var(--tempo-colors-divider-neutral-primary-default, #333);
+    gap: 8px;
 }
+
+.artist_dumper_options_div .artist_dumper_left_group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .artist_dumper_options_div .artist_dumper_song_type_options_div {
-    padding: 5px;
-    display: grid;
+    padding: 2px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
     box-sizing: border-box;
-    grid-template-columns: minmax(0, 0.12fr) minmax(0, 0.2fr) minmax(0, 0.18fr) minmax(0, 0.24fr) minmax(0, 0.26fr);
 }
-.artist_dumper_options_div .artist_dumper_song_type_options_div input {
+
+/* Action Section with border and icon */
+.artist_dumper_options_div .artist_dumper_action_options_div {
+    display: flex;
+    align-items: center;
+}
+
+/* Insert the download icon via ::before */
+.artist_dumper_options_div .artist_dumper_action_options_div label::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    /* Clean inline SVG data URI matching currentColor */
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") no-repeat center;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/%3E%3C/svg%3E") no-repeat center;
+}
+
+.artist_dumper_options_div label {
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.artist_dumper_options_div input[type="checkbox"] {
     margin-left: 5px;
+    cursor: pointer;
 }
 
 .artist_dumper_dropdown {
     font-size: 14px;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
+    color: currentcolor;
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     border-radius: 4px;
 }
 
 .artist_dumper_min_song_length_input {
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    width: 100%;
+    box-sizing: border-box;
+    color: currentcolor;
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     border-radius: 4px;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
     padding: 5px;
     margin-left: 5px;
 }
 
 .artist_dumper_searchbar {
     width: 100%;
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    box-sizing: border-box;
+    color: currentcolor;
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     border-radius: 6px;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
     margin-top: 5px;
     padding: 8px 11px;
 }
 
-.artist_dumper_new_playlist_btn {
+.artist_dumper_new_playlist_btn, .artist_dumper_play_next_btn {
     width: 100%;
     display: inline-flex;
     align-items: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
-.artist_dumper_new_playlist_btn span {
-    color: var(--tempo-colors-text-accent-primary-default);
+.artist_dumper_new_playlist_btn span, .artist_dumper_play_next_btn span {
+    color: var(--tempo-colors-text-accent-primary-default, #a238ff);
     padding-right: 5px;
 }
-.artist_dumper_new_playlist_btn span svg path {
-    fill: var(--tempo-colors-text-accent-primary-default);
+.artist_dumper_new_playlist_btn span svg path, .artist_dumper_play_next_btn span svg path {
+    fill: var(--tempo-colors-text-accent-primary-default, #a238ff);
 }
 
 .artist_dumper_playlist_ul {
@@ -127,14 +197,20 @@ function set_css() {
     overflow: auto;
     position: relative;
     top: 6px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 .artist_dumper_playlist_ul button {
     width: 100%;
     padding: 12px 16px;
     text-align: left;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 .artist_dumper_playlist_ul button:hover {
-    background-color: var(--tempo-colors-background-neutral-secondary-hovered);
+    background-color: var(--tempo-colors-background-neutral-secondary-hovered, rgba(128,128,128,.15));
 }
 .artist_dumper_playlist_ul button[selected=""] {
     background-color: #463554a1;
@@ -143,18 +219,26 @@ function set_css() {
 .artist_dumper_action_btn {
     width: 100%;
     position: relative;
-    background-color: var(--tempo-colors-background-accent-primary-default);
+    background-color: var(--tempo-colors-background-accent-primary-default, #a238ff);
+    color: #fff;
     font-weight: bold;
     font-size: 20px;
+    border: none;
     border-radius: 5px;
     padding: 10px;
+    cursor: pointer;
+    margin-top: 5px;
 }
 .artist_dumper_action_btn:hover {
-    background-color: var(--tempo-colors-background-accent-primary-hovered);
+    background-color: var(--tempo-colors-background-accent-primary-hovered, #b57bff);
 }
 
 .artist_dumper_regex_parent_group {
-    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
+    list-style: none;
+    display: flex;
+    padding: 0;
+    margin: 0;
 }
 .artist_dumper_regex_dropdown_toggle_btn {
     width: 80%;
@@ -162,6 +246,10 @@ function set_css() {
     font-weight: bold;
     text-align: left;
     padding: 8px 15px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: currentcolor;
 }
 .artist_dumper_regex_dropdown_toggle_btn::before {
     content: "▶";
@@ -177,6 +265,14 @@ function set_css() {
     border-radius: 50%;
     font-size: 25px;
     min-width: 30px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: currentcolor;
+}
+
+.artist_dumper_regex_btns--export {
+    transform: rotate(180deg);
 }
 
 .artist_dumper_regex_dropdown_menu {
@@ -187,22 +283,23 @@ function set_css() {
 }
 .artist_dumper_regex_dropdown_item {
     display: grid;
-    grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr); /* This adds up 0.985, the 0.015 are used for the scaling of the trashcan on hover */
+    grid-template-columns: minmax(0, 0.32fr) minmax(0, 0.1fr) minmax(0, 0.14fr) minmax(0, 0.11fr) minmax(0, 0.08fr) minmax(0, 0.085fr) minmax(0, 0.1fr) minmax(0, 0.06fr);
     box-sizing: border-box;
-    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    border-bottom: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     padding: 4px 2px;
 }
 
 .artist_dumper_regex_dropdown_item select {
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
+    color: currentcolor;
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     border-radius: 4px;
 }
 .artist_dumper_regex_dropdown_item .artist_dumper_regex_input {
-    color: var(--color-text-secondary);
-    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default);
+    color: var(--color-text-secondary, #ccc);
+    border: 0.5px solid var(--tempo-colors-divider-neutral-primary-default, #333);
     border-radius: 6px;
-    background-color: var(--tempo-colors-background-neutral-secondary-default);
+    background-color: var(--tempo-colors-background-neutral-secondary-default, #1f1f1f);
     padding: 2px 4px;
     margin-right: 3px;
 }
@@ -215,6 +312,9 @@ function set_css() {
 .artist_dumper_regex_delete_btn {
     font-size: 18px;
     scale: 1.1;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 .artist_dumper_regex_delete_btn:hover {
     scale: 1.2;
@@ -260,11 +360,45 @@ function get_current_artist_id() {
 }
 
 function get_current_artist_name() {
-    return document.querySelector("meta[itemprop='name']").content
+    // FIX: meta[itemprop=name] still exists on artist pages, but fall back to the
+    // masthead heading (and document title) if Deezer removes the schema markup.
+    const meta = document.querySelector("meta[itemprop='name']");
+    if (meta && meta.content) return meta.content;
+    const h2 = document.querySelector('#page_naboo_artist [data-testid="masthead"] h2[title]');
+    if (h2 && h2.title) return h2.title;
+    return document.title.replace(/ - Deezer$/, "");
 }
 
-function get_playlists() {
-    return JSON.parse(localStorage.getItem("PLAYLISTS_"+user_id)).data;
+function get_playlists_local() {
+    const raw = localStorage.getItem("PLAYLISTS_" + user_id);
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && parsed.data ? parsed.data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function get_playlists_remote() {
+    // FIX fallback: ask gw-light for the user's playlists directly, in case the
+    // PLAYLISTS_<id> localStorage entry is no longer written by the new app.
+    const r = await fetch("https://www.deezer.com/ajax/gw-light.php?method=deezer.pageProfile&input=3&api_version=1.0&api_token=" + get_api_token(), {
+        "body": JSON.stringify({
+            "user_id": Number(user_id),
+            "nb": 200,
+            "start": 0,
+            "tab": "playlists"
+        }),
+        "method": "POST",
+        "credentials": "include"
+    });
+    const resp = await r.json();
+    return resp?.results?.TAB?.playlists?.data ?? [];
+}
+
+async function get_playlists() {
+    return get_playlists_local() ?? await get_playlists_remote();
 }
 
 function get_config() {
@@ -275,13 +409,14 @@ function get_config() {
             singles: true,
             album: true,
             featured: true,
-            duplicates: false
+            duplicates: false,
+            download_dump: false
         },
         order: 0, // 0 = RELEASE_DATE, 1 = RANK
         min_length: 60,
         regexes: [
             {
-                str: String.raw`[([-] *((((super|over) )?slowed( *down)?)|(spee?d( up)?)|(reverb)|(8d audio)|(live))(.*reverb)?( *version)? *[)\]]? *$`, // https://regex101.com/r/xlxhY7/1
+                str: String.raw`[([-] *((((super|over) )?slowed( *down)?)|(spee?d( *up)?)|(reverb)|(8d audio)|(live))(.*reverb)?( *version)? *[)]]? *$`, // https://regex101.com/r/xlxhY7/1
                 flags: "i",
                 type: 0, // 0 = blacklist, 1 = whitelist
                 for_artist: "-1", // -1 = every artist, any other number is artist id
@@ -420,7 +555,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                 continue;
             }
 
-            if (album_song.ARTISTS.every( (artist) => artist.ART_ID !== artist_id) ) {
+            if (album_song.ARTISTS.every( (artist) => String(artist.ART_ID) !== String(artist_id)) ) {
                 artdump_log.info(`Song ${song_title} doesn't feature artist`);
                 continue;
             }
@@ -450,7 +585,7 @@ async function get_all_songs(auth_token, artist_id, regexes) {
                 (songs_isrc[album_song.ISRC] ||= [song_title, []])[1].push(album_song.SNG_ID);
             }
 
-            album_songs.push([album_song.SNG_ID, song_title]);
+            album_songs.push([String(album_song.SNG_ID), song_title]);
 
         }
 
@@ -528,7 +663,15 @@ async function add_songs_to_playlist(playlist_id, songs) {
 }
 
 async function update_playlist_picture_to_current_artist(playlist_id) {
-    const img_url = document.querySelector("#page_naboo_artist > div.container > div > div > div > img").src
+    // FIX: the old container path `#page_naboo_artist > div.container > div > div > div > img`
+    // does not exist anymore. Use the masthead cover with fallbacks.
+    const img = document.querySelector('#page_naboo_artist [data-testid="artist-cover"] img')
+        || document.querySelector('#page_naboo_artist [data-testid="masthead"] img')
+        || document.querySelector('#page_naboo_artist img');
+    if (!img) {
+        throw new Error("Could not find artist image");
+    }
+    const img_url = img.src
     let r = await fetch(img_url);
     const img_blob = await r.blob();
     const form_data = new FormData();
@@ -557,6 +700,33 @@ async function get_songs_in_playlist(playlist_id) {
     return resp;
 }
 
+// NEW: queue support ("Listen next" / "Add to queue")
+// The app's own context-menu buttons call dzPlayer.loadTracks with this exact
+// config shape; it fetches the track data itself from the given ids.
+async function add_songs_to_queue(song_ids) {
+    const dzPlayer = window.dzPlayer;
+    if (!dzPlayer) {
+        throw new Error("window.dzPlayer not found. Check that '@grant none' is in the ==UserScript== header.");
+    }
+
+    dzPlayer.loadTracks({
+        type: "track",
+        id: song_ids.map(String),
+        radio: false,
+        index: -1,
+        autoplay: false,   // don't hijack playback; just modify the queue
+        context: {
+            ID: get_current_artist_id(),
+            TYPE: "artist",
+            CONTEXT_ID: ""
+        },
+        data: [],           // loadTracks fills this itself from `id`
+        offset: 0,
+        addNext: true,      // true = "Listen next" (insert after current track)
+        addQueue: false,    // would be true for "Add to queue" (append at end)
+        saveCurrentTrackList: true
+    });
+}
 
 
 function validate_regex(regex_str, flags) {
@@ -651,8 +821,11 @@ async function submit(main_div) {
 
     let text = "";
 
+    const is_queue_mode = selected_playlist.getAttribute("data-id") === "-2";
     const selected_playlist_id = selected_playlist.getAttribute("data-id");
-    if (selected_playlist_id !== "-1") {
+
+    // skip the "already in playlist" check in queue mode and in new-playlist mode
+    if (selected_playlist_id !== "-1" && selected_playlist_id !== "-2") {
         const songs_already_in_playlist = await get_songs_in_playlist(selected_playlist_id);
         if (songs_already_in_playlist.error.length === 0) {
             for (let song_already_in_playlist of songs_already_in_playlist.results.data) {
@@ -689,10 +862,26 @@ async function submit(main_div) {
         artdump_log.info("There are no songs to add, exiting");
         return;
     }
-    data.song_ids.reverse(); // the order we receive is fifo but we need filo (basically). doesnt matter rly tho as sorting playlist afterwards doesnt really work as we add all songs at the same time
+    if (!is_queue_mode) {
+        data.song_ids.reverse(); // the order we receive is fifo but we need filo (basically). doesnt matter rly tho as sorting playlist afterwards doesnt really work as we add all songs at the same time
+    } // queue mode: keep chronological order so "Play Next" plays oldest first
 
     const artist_name = get_current_artist_name();
-    if (selected_playlist.getAttribute("data-id") === "-1") {
+    if (is_queue_mode) {
+        artdump_log.info("Adding songs to the queue (Play Next)");
+        artdump_log.info(`Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
+
+        try {
+            await add_songs_to_queue(data.song_ids);
+            artdump_log.success("Added songs to the queue");
+            artdump_log.success("Finished");
+        } catch (e) {
+            artdump_log.error("Failed to add songs to the queue (see console)");
+            artdump_log.error(e.message);
+            console.error("[Deezer Artist Dumper] queue error", e);
+            return;
+        }
+    } else if (selected_playlist.getAttribute("data-id") === "-1") {
         artdump_log.info("Creating new playlist for "+artist_name);
         artdump_log.info(`Adding ${data.song_ids.length} songs (${text.substr(0, text.length-2)})`);
 
@@ -704,14 +893,19 @@ async function submit(main_div) {
         }
         artdump_log.success("Created playlist with songs in it");
 
-        r = await update_playlist_picture_to_current_artist(r.results)
-        if (r.error.length !== 0) {
+        try {
+            r = await update_playlist_picture_to_current_artist(r.results)
+            if (r.error.length !== 0) {
+                artdump_log.error("Failed to add picture to playlist (see console)");
+                console.error("Failed to add picture to playlist", r.error);
+                return;
+            }
+            artdump_log.success("Added picture to playlist");
+        } catch (e) {
             artdump_log.error("Failed to add picture to playlist (see console)");
-            console.error("Failed to add picture to playlist", r.error);
-            return;
+            console.error("Failed to add picture to playlist", e);
         }
 
-        artdump_log.success("Added picture to playlist");
         artdump_log.success("Finished");
 
     } else {
@@ -734,7 +928,12 @@ async function submit(main_div) {
         artdump_log.success("Finished");
     }
     artdump_log.info(`Process took ${(Date.now()-start_time)/1000} seconds.`);
-    download_btn.click();
+
+    if (!!config.toggles.download_dump) {
+        download_btn.click();
+    } else {
+        artdump_log.info("Dump download skipped (enable the Dump checkbox to auto-download)");
+    }
 
 }
 
@@ -827,6 +1026,7 @@ function create_main_btn(main_div) {
     const main_btn = document.createElement("button");
 
     main_btn.className = "artist_dumper_main_btn";
+    main_btn.title = "Artist Dumper";
     main_btn.innerHTML = `<svg viewBox="0 0 24 24" width="27px" height="27px">
         <path
             fill-rule="evenodd" d="M11.335 11.335V4h1.33v7.335H20v1.33h-7.335V20h-1.33v-7.335H4v-1.33h7.335Z" clip-rule="evenodd">
@@ -914,7 +1114,7 @@ function create_regexes_dropdown() {
         this_artist_opt.textContent = "This Artist";
 
         for_artist_dropdown.onchange = () => {
-            regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? "-1" : curr_artist_id;
+            regex_ref.for_artist = for_artist_dropdown.selectedIndex === 0 ? "-1" : get_current_artist_id();
             set_config();
         }
         for_artist_dropdown.append(all_artists_opt, this_artist_opt);
@@ -1039,13 +1239,14 @@ function create_regexes_dropdown() {
 
                 // rebuild dropdown items
                 while (dropdown_menu.childElementCount > 1) dropdown_menu.lastElementChild.remove();
+                const curr_artist_id = get_current_artist_id();
                 dropdown_menu.append( ...(config.regexes.filter( (regex) => (regex.for_artist === "-1" || regex.for_artist === curr_artist_id) ).map( (regex) => create_item(regex) ) ) );
             }
         }, 10)
     }
 
     const import_btn = document.createElement("button");
-    import_btn.className = "artist_dumper_regex_btns";
+    import_btn.className = "artist_dumper_regex_btns artist_dumper_regex_btns--import";
     import_btn.textContent = "⤓";
     import_btn.title = "Import regexes without removing existing ones";
     import_btn.onclick = () => {
@@ -1055,9 +1256,9 @@ function create_regexes_dropdown() {
 
 
     const export_btn = document.createElement("button");
-    export_btn.className = "artist_dumper_regex_btns";
+    export_btn.className = "artist_dumper_regex_btns artist_dumper_regex_btns--export";
     export_btn.title = "Export regexes";
-    export_btn.textContent = "⤒";
+    export_btn.textContent = "⤓";
     export_btn.onclick = () => {
         const formatted_time = (new Date()).toLocaleString('sv-SE', {
             year: 'numeric',
@@ -1107,45 +1308,73 @@ function create_options() {
     const options_div = document.createElement("div");
     options_div.className = "artist_dumper_options_div";
 
+    // --- Left Section Wrapper (Holds both filters and actions) ---
+    const left_group = document.createElement("div");
+    left_group.className = "artist_dumper_left_group";
+
+    // 1. Song Type Filters
     const song_type_options = document.createElement("div");
     song_type_options.className = "artist_dumper_song_type_options_div";
-    const types = ["EP", "Singles", "Album", "Featured", "Duplicates"]
-    let input, lbl;
-    for (let type of types) {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.title = `Wether to include ${type} or not`
+    const types = ["EP", "Singles", "Album", "Featured", "Duplicates"];
 
-        lbl = document.createElement("label");
+    for (let type of types) {
+        let input = document.createElement("input");
+        input.type = "checkbox";
+        input.title = `Whether to include ${type} or not`;
+
+        let lbl = document.createElement("label");
         lbl.textContent = type;
         lbl.appendChild(input);
 
-        type = type.toLowerCase();
-
-        input.checked = config.toggles[type]
+        let typeKey = type.toLowerCase();
+        input.checked = config.toggles[typeKey];
         input.onclick = () => {
-            config.toggles[type] = !config.toggles[type];
+            config.toggles[typeKey] = !config.toggles[typeKey];
             set_config();
-        }
+        };
 
         song_type_options.appendChild(lbl);
     }
 
+    // 2. Action / Behavior Options (Dump)
+    const action_options = document.createElement("div");
+    action_options.className = "artist_dumper_action_options_div";
 
+    const download_dump_checkbox = document.createElement("input");
+    download_dump_checkbox.type = "checkbox";
+    download_dump_checkbox.title = "Automatically download the JSON dump file after a run";
+
+    const download_dump_lbl = document.createElement("label");
+    download_dump_lbl.textContent = "Dump JSON";
+    download_dump_lbl.appendChild(download_dump_checkbox);
+
+    download_dump_checkbox.checked = !!config.toggles.download_dump;
+    download_dump_checkbox.onclick = () => {
+        config.toggles.download_dump = !config.toggles.download_dump;
+        set_config();
+    };
+
+    action_options.appendChild(download_dump_lbl);
+
+    // Assemble the left group
+    left_group.append(song_type_options, action_options);
+
+    // --- Middle Section: Order Dropdown ---
     const opts = [document.createElement('option'), document.createElement('option')];
     opts[0].textContent = "Release Date";
     opts[1].textContent = "Popularity";
 
     const order_dropdown = document.createElement("select");
     order_dropdown.className = "artist_dumper_dropdown";
-    order_dropdown.title = "Order of songs. Does not really affect anything at the moment, as the songs get added all at once so deezer sorts them by their song id internally which is MOSTLY equal to release date, but can have exceptions.";
-    order_dropdown.append(...opts)
+    order_dropdown.title = "Order of songs...";
+    order_dropdown.append(...opts);
     order_dropdown.selectedIndex = config.order;
     order_dropdown.onchange = () => {
         config.order = order_dropdown.selectedIndex;
         set_config();
-    }
+    };
 
+    // --- Right Section: Min Length Input ---
     const min_song_length_input = document.createElement("input");
     min_song_length_input.type = "number";
     min_song_length_input.className = "artist_dumper_min_song_length_input";
@@ -1155,20 +1384,20 @@ function create_options() {
     min_song_length_input.onchange = () => {
         config.min_length = Number(min_song_length_input.value);
         set_config();
-    }
+    };
 
-    options_div.append(song_type_options, order_dropdown, min_song_length_input);
+    options_div.append(left_group, order_dropdown, min_song_length_input);
 
     return options_div;
 }
-
 function create_search_bar(playlists, playlist_ul) {
     const input = document.createElement("input")
     input.placeholder = "Search Playlist 🔎︎";
     input.className = "artist_dumper_searchbar";
     input.oninput = (e) => {
         for (let playlist of playlists) {
-            playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`).style.display = playlist.TITLE.toLowerCase().includes(input.value.toLowerCase()) ? "" : "none";
+            const btn = playlist_ul.querySelector(`button[data-id='${playlist.PLAYLIST_ID}']`);
+            if (btn) btn.style.display = playlist.TITLE.toLowerCase().includes(input.value.toLowerCase()) ? "" : "none";
         }
     }
     return input;
@@ -1198,13 +1427,39 @@ function create_new_playlist_btn() {
     return new_playlist_btn;
 }
 
+// NEW: "Play Next" target button
+function create_play_next_btn() {
+    const play_next_btn = document.createElement("button");
+    play_next_btn.type = "button";
+    play_next_btn.className = "artist_dumper_play_next_btn";
+    play_next_btn.title = "Adds all dumped songs to the web player's queue, so they play next (after the current track). Needs the page-internal player bridge (window.dzPlayer).";
+    play_next_btn.setAttribute("data-id", "-2");
 
-function create_playlists_btns(playlists, new_playlist_btn) {
+    const icon_span = document.createElement("span");
+    icon_span.innerHTML = `<svg viewBox="0 0 24 24" width="24px" height="24px">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M4 5.5v13l9-6.5-9-6.5Zm11 0h2v13h-2v-13Z"></path>
+    </svg>`;
+    const text_span = document.createElement("span");
+    text_span.textContent = "Play Next (Queue)";
+    play_next_btn.append(icon_span, text_span);
+
+    play_next_btn.onclick = () => {
+        change_selected_playlist(play_next_btn);
+    }
+    return play_next_btn;
+}
+
+
+function create_playlists_btns(playlists, new_playlist_btn, play_next_btn) {
     const playlist_ul = document.createElement("ul");
     playlist_ul.className = "artist_dumper_playlist_ul";
 
     let playlist_li = document.createElement("li");
     playlist_li.appendChild(new_playlist_btn);
+    playlist_ul.appendChild(playlist_li);
+
+    playlist_li = document.createElement("li");
+    playlist_li.appendChild(play_next_btn);
     playlist_ul.appendChild(playlist_li);
 
     let playlist, playlist_btn;
@@ -1213,7 +1468,7 @@ function create_playlists_btns(playlists, new_playlist_btn) {
         playlist_btn.title = `Add the songs to ${playlist.TITLE}`
         playlist_btn.textContent = playlist.TITLE
         playlist_btn.onclick = (e) => {
-            change_selected_playlist(e.target);
+            change_selected_playlist(e.currentTarget);
         }
         playlist_btn.setAttribute("data-id", playlist.PLAYLIST_ID);
 
@@ -1344,6 +1599,10 @@ let selected_playlist;
 let artdump_log;
 let download_btn;
 let last_path = location.pathname;
+let artist_dumper_observer = null;
+let artist_dumper_building = false;
+
+
 
 // url change stuff
 
@@ -1392,18 +1651,25 @@ async function artist_main() {
     }
     if (!user_data) {
         Artdump_log.console("Not logged in");
+        return;
     }
 
     user_id = user_data.results.USER.USER_ID;
 
-    let main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+    let main_ul = document.querySelector('#page_naboo_artist [data-testid="masthead"] ul[role="group"]')   // new artist page
+        || document.querySelector('#page_naboo_artist ul.chakra-button__group')                            // new artist page (fallback)
+        || document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");           // old artist page
     if (main_ul) {
         create_ui(main_ul);
     } else {
+        if (artist_dumper_observer) artist_dumper_observer.disconnect();
         const observer = new MutationObserver(mutations => {
+            artist_dumper_observer = observer;
             for (let mutation of mutations) {
                 if (mutation.type === 'childList') {
-                    main_ul = document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
+                    main_ul = document.querySelector('#page_naboo_artist [data-testid="masthead"] ul[role="group"]')
+                        || document.querySelector('#page_naboo_artist ul.chakra-button__group')
+                        || document.querySelector("#page_naboo_artist > div.container > div > ul[role='group']");
                     if (main_ul) {
                         observer.disconnect();
                         create_ui(main_ul);
@@ -1415,11 +1681,12 @@ async function artist_main() {
     }
 
 
-    function create_ui(main_ul) {
+    async function create_ui(main_ul) {
         Artdump_log.console("Element found");
-        if (document.querySelector(".artist_dumper_main_btn") !== null) {
+        if (artist_dumper_building || document.querySelector(".artist_dumper_main_btn") !== null) {
             return;
         }
+        artist_dumper_building = true;
 
         config = get_config();
         last_dump_song_ids = [];
@@ -1436,8 +1703,9 @@ async function artist_main() {
         new_playlist_btn.setAttribute("selected", "");
         selected_playlist = new_playlist_btn;
 
-        const playlists = get_playlists()
-        const playlist_ul = create_playlists_btns(playlists, new_playlist_btn);
+        const playlists = await get_playlists()
+        const play_next_btn = create_play_next_btn();
+        const playlist_ul = create_playlists_btns(playlists, new_playlist_btn, play_next_btn);
         const search_bar = create_search_bar(playlists, playlist_ul);
 
         const submit_btn = create_submit_btn(main_div);
@@ -1448,5 +1716,6 @@ async function artist_main() {
 
         main_div.append(regex_dropdown, options_div, search_bar, playlist_ul, submit_btn, artdump_log_textarea, load_btn);
         main_ul.append(main_btn, main_div);
+        artist_dumper_building = false;
     }
 }

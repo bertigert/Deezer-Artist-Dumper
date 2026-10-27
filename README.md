@@ -22,6 +22,7 @@ Thanks to the [DeezMod](https://github.com/bertigert/DeezMod) project we can now
     - album name (note that every song is an album, so an album blacklist also blocks songs **if** the artist did not specify a different album name. If you know what you're doing, you can use this feature to improve the speed by alot, as we don't need to get the songs for the album (mostly useful for singles))
     - contributor name (meaning if a blacklisted artist has contributed, the song is blacklisted)
 - A dump merge script is included which can be used to merge multiple dumps into a single dump, simplifying the dump loading process for later uses (a update dumps script is also included which should update old version dumps to a the new version)
+- option to add songs to queue instead of playlist
 
 ## Links
 - [Github](https://github.com/bertigert/Deezer-Artist-Dumper/)
